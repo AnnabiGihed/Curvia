@@ -1,0 +1,20 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/Containers/" />
+  <Folder Name="/src/Containers/API/">
+    <Project Path="src/Containers/API/Curvia.API/Curvia.API.csproj" />
+  </Folder>
+  <Folder Name="/src/Containers/UI/">
+    <Project Path="src/Containers/UI/Curvia.App.Shared/Curvia.App.Shared.csproj" />
+    <Project Path="src/Containers/UI/Curvia.App.ViewModels/Curvia.App.ViewModels.csproj" />
+    <Project Path="src/Containers/UI/Curvia.App/Curvia.App.csproj" />
+  </Folder>
+  <Folder Name="/src/Core/">
+    <Project Path="src/Core/Curvia.Application/Curvia.Application.csproj" Id="ddea7983-7e6b-4c0e-b496-1981dcfbc2d7" />
+    <Project Path="src/Core/Curvia.Domain/Curvia.Domain.csproj" Id="6744b48f-90a0-41e2-8d19-0f9c428e715c" />
+  </Folder>
+  <Folder Name="/src/Infrastructure/">
+    <Project Path="src/Infrastructure/Curvia.EntityFrameworkCore/Curvia.Persistence.EntityFrameworkCore.csproj" />
+    <Project Path="src/Infrastructure/Curvia.Infrastructure/Curvia.Infrastructure.csproj" />
+  </Folder>
+</Solution>

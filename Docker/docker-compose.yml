@@ -1,0 +1,23 @@
+version: "3.9"
+
+services:
+  valhalla:
+    image: ghcr.io/gis-ops/docker-valhalla/valhalla:latest
+    container_name: valhalla
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./custom_files:/custom_files
+    environment:
+      # If tiles already exist, do not rebuild on restart
+      - force_rebuild=False
+      - force_rebuild_elevation=False
+
+      # Build supporting datasets (good defaults)
+      - build_admins=True
+      - build_time_zones=True
+      - build_elevation=True
+
+      # Let the container build tiles from the PBF in /custom_files
+      # (Some setups use a different toggle; the GIS·OPS image supports auto rebuild via hashed inputs)
+      - use_tiles_ignore_pbf=False

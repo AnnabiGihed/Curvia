@@ -1,0 +1,6 @@
+@Curvia.API_HostAddress = http://localhost:5027
+
+GET {{Curvia.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

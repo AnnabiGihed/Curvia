@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Curvia.Domain\Curvia.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Features\Routing\Routes\Commands\" />
+    <Folder Include="Features\Routing\Routes\Services\" />
+    <Folder Include="Features\Routing\Routes\Queries\" />
+    <Folder Include="Features\Routing\RoutingPlans\Commands\" />
+    <Folder Include="Features\Routing\RoutingPlans\Queries\" />
+    <Folder Include="Features\Routing\RoutingPlans\Services\" />
+  </ItemGroup>
+
+</Project>

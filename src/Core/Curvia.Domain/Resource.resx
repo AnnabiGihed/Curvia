@@ -1,0 +1,198 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!-- 
+    Microsoft ResX Schema 
+    
+    Version 2.0
+    
+    The primary goals of this format is to allow a simple XML format 
+    that is mostly human readable. The generation and parsing of the 
+    various data types are done through the TypeConverter classes 
+    associated with the data types.
+    
+    Example:
+    
+    ... ado.net/XML headers & schema ...
+    <resheader name="resmimetype">text/microsoft-resx</resheader>
+    <resheader name="version">2.0</resheader>
+    <resheader name="reader">System.Resources.ResXResourceReader, System.Windows.Forms, ...</resheader>
+    <resheader name="writer">System.Resources.ResXResourceWriter, System.Windows.Forms, ...</resheader>
+    <data name="Name1"><value>this is my long string</value><comment>this is a comment</comment></data>
+    <data name="Color1" type="System.Drawing.Color, System.Drawing">Blue</data>
+    <data name="Bitmap1" mimetype="application/x-microsoft.net.object.binary.base64">
+        <value>[base64 mime encoded serialized .NET Framework object]</value>
+    </data>
+    <data name="Icon1" type="System.Drawing.Icon, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
+        <value>[base64 mime encoded string representing a byte array form of the .NET Framework object]</value>
+        <comment>This is a comment</comment>
+    </data>
+                
+    There are any number of "resheader" rows that contain simple 
+    name/value pairs.
+    
+    Each data row contains a name, and value. The row also contains a 
+    type or mimetype. Type corresponds to a .NET class that support 
+    text/value conversion through the TypeConverter architecture. 
+    Classes that don't support this are serialized and stored with the 
+    mimetype set.
+    
+    The mimetype is used for serialized objects, and tells the 
+    ResXResourceReader how to depersist the object. This is currently not 
+    extensible. For a given mimetype the value must be set accordingly:
+    
+    Note - application/x-microsoft.net.object.binary.base64 is the format 
+    that the ResXResourceWriter will generate, however the reader can 
+    read any of the formats listed below.
+    
+    mimetype: application/x-microsoft.net.object.binary.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Binary.BinaryFormatter
+            : and then encoded with base64 encoding.
+    
+    mimetype: application/x-microsoft.net.object.soap.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Soap.SoapFormatter
+            : and then encoded with base64 encoding.
+
+    mimetype: application/x-microsoft.net.object.bytearray.base64
+    value   : The object must be serialized into a byte array 
+            : using a System.ComponentModel.TypeConverter
+            : and then encoded with base64 encoding.
+    -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Routing_BoundingBox_Invalid" xml:space="preserve">
+    <value>BoundingBox is invalid. Ensure min/max lat/lon are within valid ranges.</value>
+  </data>
+  <data name="Routing_BoundingBox_Inverted" xml:space="preserve">
+    <value>BoundingBox is inverted. {0}</value>
+  </data>
+  <data name="Routing_BoundingBox_TooSmall" xml:space="preserve">
+    <value>BoundingBox must have a nonzero area.</value>
+  </data>
+  <data name="Routing_Common_NonFiniteNumber" xml:space="preserve">
+    <value>{0} must be a finite number.</value>
+  </data>
+  <data name="Routing_Common_NullValue" xml:space="preserve">
+    <value>{0} cannot be null.</value>
+  </data>
+  <data name="Routing_Constraints_InvalidDetourRatio" xml:space="preserve">
+    <value>MaxDetourRatio must be &gt;= 1.0. Got '{0}'.</value>
+  </data>
+  <data name="Routing_Distance_Negative" xml:space="preserve">
+    <value>Distance cannot be negative. Got '{0}' meters.</value>
+  </data>
+  <data name="Routing_Duration_Negative" xml:space="preserve">
+    <value>Duration cannot be negative. Got '{0}' seconds.</value>
+  </data>
+  <data name="Routing_ElevationGain_Negative" xml:space="preserve">
+    <value>Elevation gain cannot be negative. Got '{0}' meters.</value>
+  </data>
+  <data name="Routing_FunScore_OutOfRange" xml:space="preserve">
+    <value>Fun Score must be within [0, 1]. Got '{0}'.</value>
+  </data>
+  <data name="Routing_Geo_InvalidLatitude" xml:space="preserve">
+    <value>Latitude must be within [-90, 90]. Got '{0}'.</value>
+  </data>
+  <data name="Routing_Geo_InvalidLongitude" xml:space="preserve">
+    <value>Longitude must be within [-180, 180]. Got '{0}'.</value>
+  </data>
+  <data name="Routing_GraphVersionId_InvalidChars" xml:space="preserve">
+    <value>GraphVersionId contains invalid characters. Allowed: letters, digits, '-', '_', '.', ':'.</value>
+  </data>
+  <data name="Routing_GraphVersionId_Required" xml:space="preserve">
+    <value>GraphVersionId is required.</value>
+  </data>
+  <data name="Routing_GraphVersionId_TooLong" xml:space="preserve">
+    <value>GraphVersionId exceeds max length of {0}.</value>
+  </data>
+  <data name="Routing_Polyline_TooFewPoints" xml:space="preserve">
+    <value>Polyline must contain at least 2 points. Got '{0}'.</value>
+  </data>
+  <data name="Routing_RoutePlan_EndAndLoopNotAllowed" xml:space="preserve">
+    <value>RoutePlan cannot define both End coordinate and a LoopSpec.</value>
+  </data>
+  <data name="Routing_RoutePlan_EndOrLoopRequired" xml:space="preserve">
+    <value>RoutePlan must define either an End coordinate or a LoopSpec.</value>
+  </data>
+  <data name="Routing_RoutePlan_WaypointsTooMany" xml:space="preserve">
+    <value>Waypoints count exceeds allowed maximum. Got '{0}'.</value>
+  </data>
+  <data name="Routing_RouteSegment_GeometryRequired" xml:space="preserve">
+    <value>RouteSegment geometry must be provided.</value>
+  </data>
+  <data name="Routing_Route_GeometryRequired" xml:space="preserve">
+    <value>Route geometry must be provided.</value>
+  </data>
+  <data name="Routing_Route_GraphVersionRequired" xml:space="preserve">
+    <value>GraphVersionId must be provided.</value>
+  </data>
+  <data name="Routing_Route_SegmentsInvalid" xml:space="preserve">
+    <value>Route segments are invalid or empty.</value>
+  </data>
+  <data name="Routing_ScoringProfile_InvalidFunFactor" xml:space="preserve">
+    <value>Fun Factor must be within [0, 10]. Got '{0}'.</value>
+  </data>
+  <data name="Routing_ScoringWeights_AllZero" xml:space="preserve">
+    <value>At least one scoring weight must be greater than 0.</value>
+  </data>
+  <data name="Routing_ScoringWeights_OutOfRange" xml:space="preserve">
+    <value>{0} must be within [0, 1]. Got '{1}'.</value>
+  </data>
+</root>
