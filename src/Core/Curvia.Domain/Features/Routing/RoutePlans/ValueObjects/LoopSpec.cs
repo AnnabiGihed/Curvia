@@ -12,15 +12,16 @@ namespace Curvia.Domain.Features.Routing.RoutePlans.ValueObjects;
 public sealed class LoopSpec : CSharpFunctionalExtensions.ValueObject<LoopSpec>
 {
 	#region Properties
-
-	public Distance TargetDistance { get; }
+	public bool IsLoop { get; private set; } = true;
+	public Distance TargetDistance { get; private set; }
 
 	#endregion
 
 	#region Constructor
-
+	private LoopSpec() { }
 	private LoopSpec(Distance targetDistance)
 	{
+		IsLoop = true;
 		TargetDistance = targetDistance;
 	}
 

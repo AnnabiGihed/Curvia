@@ -8,10 +8,21 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.2" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.2">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Templates.Core.Containers.API" Version="7.0.10" />
   </ItemGroup>
 
   <ItemGroup>
     <Folder Include="Controllers\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Core\Curvia.Application\Curvia.Application.csproj" />
+    <ProjectReference Include="..\..\..\Infrastructure\Curvia.EntityFrameworkCore\Curvia.Persistence.EntityFrameworkCore.csproj" />
+    <ProjectReference Include="..\..\..\Infrastructure\Curvia.Infrastructure\Curvia.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

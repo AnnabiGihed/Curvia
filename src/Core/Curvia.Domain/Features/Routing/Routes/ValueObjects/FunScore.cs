@@ -18,7 +18,9 @@ public sealed class FunScore : CSharpFunctionalExtensions.ValueObject<FunScore>
 	#endregion
 
 	#region Constructor
-
+	private FunScore()
+	{
+	}
 	private FunScore(double value)
 	{
 		Value = value;

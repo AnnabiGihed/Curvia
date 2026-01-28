@@ -25,4 +25,8 @@
     </EmbeddedResource>
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Features\Routing\Routes\Contracts\" />
+  </ItemGroup>
+
 </Project>

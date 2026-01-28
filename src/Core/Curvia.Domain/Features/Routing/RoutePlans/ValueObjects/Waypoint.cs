@@ -16,7 +16,9 @@ public sealed class Waypoint : CSharpFunctionalExtensions.ValueObject<Waypoint>
 	#endregion
 
 	#region Constructor
-
+	private Waypoint()
+	{
+	}
 	private Waypoint(GeoCoordinate location)
 	{
 		Location = location;

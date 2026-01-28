@@ -20,7 +20,9 @@ public sealed class Duration : CSharpFunctionalExtensions.ValueObject<Duration>
 	#endregion
 
 	#region Constructor
-
+	private Duration()
+	{
+	}
 	private Duration(long seconds)
 	{
 		Seconds = seconds;

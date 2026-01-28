@@ -24,7 +24,9 @@ public sealed class RoutingConstraints : CSharpFunctionalExtensions.ValueObject<
 	#endregion
 
 	#region Constructor
-
+	private RoutingConstraints()
+	{
+	}
 	private RoutingConstraints(double maxDetourRatio, bool avoidHighways, bool avoidTolls, Distance? maxDistance)
 	{
 		MaxDetourRatio = maxDetourRatio;

@@ -19,7 +19,6 @@ public sealed class GeoCoordinate : CSharpFunctionalExtensions.ValueObject<GeoCo
 	#endregion
 
 	#region Constructor
-
 	private GeoCoordinate(double latitude, double longitude)
 	{
 		Latitude = latitude;

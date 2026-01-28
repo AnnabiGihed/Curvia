@@ -23,7 +23,9 @@ public sealed class ScoringProfile : CSharpFunctionalExtensions.ValueObject<Scor
 	#endregion
 
 	#region Constructor
-
+	private ScoringProfile()
+	{
+	}
 	private ScoringProfile(double funFactor, ScoringWeights weights)
 	{
 		FunFactor = funFactor;

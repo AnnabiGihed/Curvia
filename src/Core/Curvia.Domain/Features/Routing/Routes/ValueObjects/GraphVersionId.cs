@@ -28,7 +28,9 @@ public sealed class GraphVersionId : CSharpFunctionalExtensions.ValueObject<Grap
 	#endregion
 
 	#region Constructor
-
+	private GraphVersionId()
+	{
+	}
 	private GraphVersionId(string value)
 	{
 		Value = value;

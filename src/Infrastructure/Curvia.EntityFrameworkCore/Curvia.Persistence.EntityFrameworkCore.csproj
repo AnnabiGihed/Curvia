@@ -7,18 +7,21 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.2">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="Templates.Core.Infrastructure.Messaging.EntityFrameworkCore" Version="7.0.10" />
     <PackageReference Include="Templates.Core.Infrastructure.Persistence.EntityFrameworkCore" Version="7.0.10" />
     <PackageReference Include="Templates.Core.Tools.DependencyInjection" Version="7.0.10" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Core\Curvia.Domain\Curvia.Domain.csproj" />
+    <Folder Include="Migrations\" />
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Features\Routing\RoutePlans\Configurations\" />
-    <Folder Include="Features\Routing\Routes\Configurations\" />
+    <ProjectReference Include="..\..\Core\Curvia.Application\Curvia.Application.csproj" />
   </ItemGroup>
 
 </Project>

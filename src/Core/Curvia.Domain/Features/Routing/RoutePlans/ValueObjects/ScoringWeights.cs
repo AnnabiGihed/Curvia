@@ -20,7 +20,9 @@ public sealed class ScoringWeights : CSharpFunctionalExtensions.ValueObject<Scor
 	#endregion
 
 	#region Constructor
-
+	private ScoringWeights()
+	{
+	}
 	private ScoringWeights(double curves, double elevation, double scenery)
 	{
 		Curves = curves;

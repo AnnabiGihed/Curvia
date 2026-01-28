@@ -20,7 +20,9 @@ public sealed class ElevationGain : CSharpFunctionalExtensions.ValueObject<Eleva
 	#endregion
 
 	#region Constructor
-
+	private ElevationGain()
+	{
+	}
 	private ElevationGain(double meters)
 	{
 		Meters = meters;

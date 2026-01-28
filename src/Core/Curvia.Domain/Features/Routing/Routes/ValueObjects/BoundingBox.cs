@@ -22,7 +22,9 @@ public sealed class BoundingBox : CSharpFunctionalExtensions.ValueObject<Boundin
 	#endregion
 
 	#region Constructor
-
+	private BoundingBox()
+	{
+	}
 	private BoundingBox(double minLatitude, double minLongitude, double maxLatitude, double maxLongitude)
 	{
 		MinLatitude = minLatitude;

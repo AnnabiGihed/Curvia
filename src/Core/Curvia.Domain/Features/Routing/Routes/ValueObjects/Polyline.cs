@@ -25,7 +25,9 @@ public sealed class Polyline : CSharpFunctionalExtensions.ValueObject<Polyline>
 	#endregion
 
 	#region Constructor
-
+	private Polyline()
+	{
+	}
 	private Polyline(GeoCoordinate[] points)
 	{
 		_points = points;

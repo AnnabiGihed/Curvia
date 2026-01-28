@@ -20,7 +20,9 @@ public sealed class Distance : CSharpFunctionalExtensions.ValueObject<Distance>
 	#endregion
 
 	#region Constructor
-
+	private Distance()
+	{
+	}
 	private Distance(double meters)
 	{
 		Meters = meters;

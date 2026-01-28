@@ -20,7 +20,10 @@ public sealed class RouteStats : CSharpFunctionalExtensions.ValueObject<RouteSta
 	#endregion
 
 	#region Constructor
-
+	private RouteStats()
+	{
+		// For ORM
+	}
 	private RouteStats(Distance distance, Duration? estimatedDuration, ElevationGain? elevationGain, FunScore? funScore)
 	{
 		Distance = distance;

@@ -1,10 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿namespace Curvia.Infrastructure.Features.Routing.Routes.Engines.Valhalla;
 
-namespace Curvia.Infrastructure.Features.Routing.Routes.Engines.Valhalla
+public sealed class ValhallaOptions
 {
-	internal class ValhallaOptions
-	{
-	}
+	public string BaseUrl { get; init; } = "http://localhost:8002";
+	public int TimeoutSeconds { get; init; } = 30;
 }
