@@ -12,5 +12,23 @@ public sealed class ApiServiceInstaller : BaseServiceInstaller, IServiceInstalle
 		{
 			base.IncludeConventionBasedRegistrations(services, configuration, new List<Assembly>() { AssemblyReference.Assembly }.ToArray());
 		}
+
+		#region CORS
+		// "Open" policy referenced in HostingExtensions.ConfigurePipeline().
+		// Restrict AllowedOrigins in production.
+		services.AddCors(options =>
+		{
+			options.AddPolicy("Open", policy =>
+				policy.AllowAnyOrigin()
+					  .AllowAnyHeader()
+					  .AllowAnyMethod());
+		});
+		#endregion
+
+		#region Auth stubs
+		// Keycloak integration comes in V2.
+		services.AddAuthentication();
+		services.AddAuthorization();
+		#endregion
 	}
 }

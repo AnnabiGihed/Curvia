@@ -1,3 +1,9 @@
-﻿namespace Curvia.Application.Features.Routing.Routes.Contracts;
+﻿using System.Text.Json.Serialization;
 
-public sealed record ValhallaRouteResponse(ValhallaTrip Trip);
+namespace Curvia.Application.Features.Routing.Routes.Contracts;
+
+public sealed class ValhallaRouteResponse
+{
+	[JsonPropertyName("trip")]
+	public ValhallaTrip Trip { get; set; } = default!;
+}

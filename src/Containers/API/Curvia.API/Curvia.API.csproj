@@ -16,10 +16,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Controllers\" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\..\..\Core\Curvia.Application\Curvia.Application.csproj" />
     <ProjectReference Include="..\..\..\Infrastructure\Curvia.EntityFrameworkCore\Curvia.Persistence.EntityFrameworkCore.csproj" />
     <ProjectReference Include="..\..\..\Infrastructure\Curvia.Infrastructure\Curvia.Infrastructure.csproj" />

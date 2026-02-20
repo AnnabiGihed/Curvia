@@ -11,12 +11,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Features\Routing\Routes\Commands\" />
-    <Folder Include="Features\Routing\Routes\Services\" />
-    <Folder Include="Features\Routing\Routes\Queries\" />
     <Folder Include="Features\Routing\RoutingPlans\Commands\" />
     <Folder Include="Features\Routing\RoutingPlans\Queries\" />
     <Folder Include="Features\Routing\RoutingPlans\Services\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Templates.Core.Application" Version="7.0.10" />
+    <PackageReference Include="Templates.Core.Tools.DependencyInjection" Version="7.0.10" />
   </ItemGroup>
 
 </Project>

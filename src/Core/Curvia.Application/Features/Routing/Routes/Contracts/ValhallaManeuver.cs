@@ -1,3 +1,24 @@
-﻿namespace Curvia.Application.Features.Routing.Routes.Contracts;
+﻿using System.Text.Json.Serialization;
 
-public sealed record ValhallaManeuver(double Length, double Time, string Instruction);
+namespace Curvia.Application.Features.Routing.Routes.Contracts;
+
+public sealed class ValhallaManeuver
+{
+	[JsonPropertyName("instruction")]
+	public string? Instruction { get; set; }
+
+	[JsonPropertyName("time")]
+	public double Time { get; set; }
+
+	[JsonPropertyName("length")]
+	public double Length { get; set; }
+
+	[JsonPropertyName("begin_shape_index")]
+	public int BeginShapeIndex { get; set; }
+
+	[JsonPropertyName("end_shape_index")]
+	public int EndShapeIndex { get; set; }
+
+	[JsonPropertyName("street_names")]
+	public List<string>? StreetNames { get; set; }
+}
