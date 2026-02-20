@@ -3,17 +3,29 @@
 /// <summary>
 /// Author      : Gihed Annabi
 /// Date        : 02-2026
-/// Purpose     : Valhalla motorcycle costing options sent in the route request body.
-///              All float properties are in [0, 1] range (0 = strongly avoid, 1 = strongly prefer).
-///              Serialized as snake_case by ValhallaRoutingClient (use_highways, use_tolls, top_speed).
+/// Purpose     : Motorcycle-specific costing options sent to Valhalla.
+///              All preference values are floats in the range [0.0, 1.0]:
+///              0.0 = strongly avoid, 1.0 = strongly prefer.
+///              Serialized as snake_case by <see cref="ValhallaRoutingClient"/>
+///              (use_highways, use_tolls, use_trails, use_living_streets, top_speed).
 /// </summary>
-public sealed record ValhallaMotorcycleOptions(
-	/// <summary>0 = avoid highways entirely, 1 = strongly prefer highways.</summary>
-	double UseHighways,
-
-	/// <summary>0 = avoid tolls entirely, 1 = allow and prefer toll roads.</summary>
-	double UseTolls,
-
-	/// <summary>Optional maximum speed cap in km/h. Null = no cap.</summary>
-	double? TopSpeed
-);
+/// <param name="UseHighways">
+/// Preference for motorways and dual carriageways.
+/// 0.0 = avoid, 1.0 = prefer.
+/// </param>
+/// <param name="UseTolls">
+/// Preference for toll roads.
+/// 0.0 = avoid, 1.0 = prefer.
+/// </param>
+/// <param name="UseTrails">
+/// Preference for unpaved roads, gravel tracks and off-road trails.
+/// 0.0 = avoid unpaved, 1.0 = fully allow.
+/// </param>
+/// <param name="UseLivingStreets">
+/// Preference for urban living streets and town-centre roads.
+/// 0.0 = avoid towns, 1.0 = fully allow.
+/// </param>
+/// <param name="TopSpeed">
+/// Optional speed cap in km/h. Null means no cap is applied.
+/// </param>
+public sealed record ValhallaMotorcycleOptions(double UseHighways, double UseTolls,	double UseTrails, double UseLivingStreets, double? TopSpeed = null);

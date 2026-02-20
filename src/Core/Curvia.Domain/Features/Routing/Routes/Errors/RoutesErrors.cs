@@ -6,10 +6,7 @@ internal static class RoutesErrors
 {
 	#region Route
 
-	public static Error RouteRequiresGeometry()
-		=> new(
-			"Routing.Route.GeometryRequired",
-			Resource.Routing_Route_GeometryRequired);
+	public static Error RouteRequiresGeometry() => new(	"Routing.Route.GeometryRequired",Resource.Routing_Route_GeometryRequired);
 
 	public static Error RouteSegmentsInvalid()
 		=> new(

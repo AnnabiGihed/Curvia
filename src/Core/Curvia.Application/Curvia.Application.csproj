@@ -11,6 +11,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Folder Include="Features\Routing\Routes\Queries\" />
     <Folder Include="Features\Routing\RoutingPlans\Commands\" />
     <Folder Include="Features\Routing\RoutingPlans\Queries\" />
     <Folder Include="Features\Routing\RoutingPlans\Services\" />

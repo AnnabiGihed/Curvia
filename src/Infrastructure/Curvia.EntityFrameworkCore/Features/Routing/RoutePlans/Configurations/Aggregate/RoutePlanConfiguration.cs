@@ -2,10 +2,18 @@
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Curvia.Persistence.EntityFrameworkCore.Constants;
 using Curvia.Domain.Features.Routing.RoutePlans.Aggregate;
-using Curvia.Domain.Features.Routing.RoutePlans.ValueObjects;
 
 namespace Curvia.Persistence.EntityFrameworkCore.Features.Routing.RoutePlans.Configurations.Aggregate;
 
+/// <summary>
+/// Author      : Gihed Annabi
+/// Date        : 02-2026
+/// Purpose     : EF Core entity type configuration for the <see cref="RoutePlan"/> aggregate.
+///              Maps all owned value objects (Start, End, LoopSpec, Constraints, ScoringProfile, Waypoints)
+///              to the RoutePlans table using owned-type conventions.
+///              New columns added: IsLoop/ReturnStrategy, MaxDurationSeconds,
+///              AvoidUnpaved, UrbanTolerance.
+/// </summary>
 internal sealed class RoutePlanConfiguration : IEntityTypeConfiguration<RoutePlan>
 {
 	public void Configure(EntityTypeBuilder<RoutePlan> builder)
@@ -24,7 +32,7 @@ internal sealed class RoutePlanConfiguration : IEntityTypeConfiguration<RoutePla
 
 		#endregion
 
-		#region Properties - Start / End
+		#region Properties — Start / End
 
 		builder.OwnsOne(x => x.Start, start =>
 		{
@@ -45,14 +53,21 @@ internal sealed class RoutePlanConfiguration : IEntityTypeConfiguration<RoutePla
 			end.Property(p => p.Longitude)
 				.HasColumnName("EndLongitude");
 		});
+
 		#endregion
 
-		#region Properties - LoopSpec (optional)
+		#region Properties — LoopSpec (optional)
+
 		builder.OwnsOne(x => x.LoopSpec, loop =>
 		{
 			loop.Property(l => l.IsLoop)
 				.HasColumnName("IsLoop")
-				.IsRequired(); // This is the sentinel property
+				.IsRequired();
+
+			// ReturnStrategy stored as int column
+			loop.Property(l => l.ReturnStrategy)
+				.HasColumnName("LoopReturnStrategy")
+				.HasConversion<int>();
 
 			loop.OwnsOne(p => p.TargetDistance, dist =>
 			{
@@ -60,9 +75,10 @@ internal sealed class RoutePlanConfiguration : IEntityTypeConfiguration<RoutePla
 					.HasColumnName("LoopTargetDistanceMeters");
 			});
 		});
+
 		#endregion
 
-		#region Properties - Constraints
+		#region Properties — Constraints
 
 		builder.OwnsOne(x => x.Constraints, constraints =>
 		{
@@ -78,6 +94,20 @@ internal sealed class RoutePlanConfiguration : IEntityTypeConfiguration<RoutePla
 				.HasColumnName("AvoidTolls")
 				.IsRequired();
 
+			constraints.Property(p => p.AvoidUnpaved)
+				.HasColumnName("AvoidUnpaved")
+				.IsRequired();
+
+			// Stored as int (enum value)
+			constraints.Property(p => p.UrbanTolerance)
+				.HasColumnName("UrbanTolerance")
+				.HasConversion<int>()
+				.IsRequired();
+
+			constraints.Property(p => p.MaxDurationSeconds)
+				.HasColumnName("MaxDurationSeconds")
+				.IsRequired(false);
+
 			constraints.OwnsOne(p => p.MaxDistance, maxDist =>
 			{
 				maxDist.Property(d => d.Meters)
@@ -87,15 +117,15 @@ internal sealed class RoutePlanConfiguration : IEntityTypeConfiguration<RoutePla
 
 		#endregion
 
-		#region Properties - ScoringProfile
+		#region Properties — ScoringProfile
 
-		builder.OwnsOne(x => x.ScoringProfile, scoring =>
+		builder.OwnsOne(x => x.ScoringProfile, profile =>
 		{
-			scoring.Property(p => p.FunFactor)
+			profile.Property(p => p.FunFactor)
 				.HasColumnName("FunFactor")
 				.IsRequired();
 
-			scoring.OwnsOne(p => p.Weights, weights =>
+			profile.OwnsOne(p => p.Weights, weights =>
 			{
 				weights.Property(w => w.Curves)
 					.HasColumnName("WeightCurves")
@@ -113,23 +143,26 @@ internal sealed class RoutePlanConfiguration : IEntityTypeConfiguration<RoutePla
 
 		#endregion
 
-		#region Waypoints (owned collection)
-		builder.Navigation(x => x.Waypoints)
-			.UsePropertyAccessMode(PropertyAccessMode.Field);
+		#region Properties — Waypoints
 
-		builder.OwnsMany(x => x.Waypoints, w =>
+		builder.OwnsMany(x => x.Waypoints, waypoint =>
 		{
-			w.ToTable(DbTableNames.RoutePlanWaypoints);
-			w.WithOwner()
-				.HasForeignKey("RoutePlanId");
-			w.Property<Guid>("Id");
-			w.HasKey("Id");
-			w.OwnsOne(p => p.Location, loc =>
+			waypoint.ToTable(DbTableNames.RoutePlanWaypoints);
+
+			waypoint.WithOwner().HasForeignKey("RoutePlanId");
+
+			waypoint.Property<Guid>("Id")
+				.ValueGeneratedOnAdd();
+
+			waypoint.HasKey("Id");
+
+			waypoint.OwnsOne(w => w.Location, loc =>
 			{
-				loc.Property(x => x.Latitude).HasColumnName("Latitude").IsRequired();
-				loc.Property(x => x.Longitude).HasColumnName("Longitude").IsRequired();
+				loc.Property(p => p.Latitude).HasColumnName("Latitude").IsRequired();
+				loc.Property(p => p.Longitude).HasColumnName("Longitude").IsRequired();
 			});
 		});
+
 		#endregion
 	}
 }

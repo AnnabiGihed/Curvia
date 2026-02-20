@@ -4,6 +4,7 @@ using Curvia.Persistence.EntityFrameworkCore.PersistenceContext;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Curvia.Persistence.EntityFrameworkCore.Migrations
 {
     [DbContext(typeof(CurviaDbContext))]
-    partial class CurviaDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260220205001_Migration_RoutingConstraintsV2")]
+    partial class Migration_RoutingConstraintsV2
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

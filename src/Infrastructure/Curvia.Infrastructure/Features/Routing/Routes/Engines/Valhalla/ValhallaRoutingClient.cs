@@ -9,55 +9,59 @@ namespace Curvia.Infrastructure.Features.Routing.Routes.Engines.Valhalla;
 /// <summary>
 /// Author      : Gihed Annabi
 /// Date        : 02-2026
-/// Purpose     : HTTP client wrapping Valhalla's /route endpoint.
-///              Uses snake_case JSON serialization to match Valhalla's API contract
-///              (e.g. costing_options, use_highways, use_tolls).
-///              Null properties are omitted from the request body.
+/// Purpose     : HTTP client wrapper for Valhalla's /route endpoint.
+///              Handles snake_case JSON serialization (required by Valhalla API),
+///              null-value exclusion and case-insensitive response deserialization.
 /// </summary>
 internal sealed class ValhallaRoutingClient : IValhallaRoutingClient
 {
+	#region Fields
+	private readonly HttpClient _http;
+
 	/// <summary>
-	/// .NET 10 built-in snake_case policy + null-value suppression.
-	/// Applied to both serialization (request) and deserialization (response).
+	/// Shared serializer options used for both request serialization and response deserialization.
+	/// snake_case naming is required by the Valhalla REST API.
 	/// </summary>
 	private static readonly JsonSerializerOptions JsonOptions = new()
 	{
+		PropertyNameCaseInsensitive = true,
 		PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-		DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-		PropertyNameCaseInsensitive = true   // tolerant deserialization of responses
+		DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
 	};
+	#endregion
 
-	private readonly HttpClient _http;
-
+	#region Constructor
+	/// <summary>
+	/// Initialises the client and configures the base address and timeout from options.
+	/// </summary>
+	/// <param name="http">Injected <see cref="HttpClient"/> instance.</param>
+	/// <param name="options">Valhalla connection options (BaseUrl, TimeoutSeconds).</param>
 	public ValhallaRoutingClient(HttpClient http, IOptions<ValhallaOptions> options)
 	{
 		_http = http ?? throw new ArgumentNullException(nameof(http));
-
 		var opt = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_http.BaseAddress = new Uri(opt.BaseUrl.TrimEnd('/') + "/");
 		_http.Timeout = TimeSpan.FromSeconds(opt.TimeoutSeconds);
 	}
+	#endregion
 
+	#region IValhallaRoutingClient
+	/// <inheritdoc/>
 	public async Task<ValhallaRouteResponse> RouteAsync(ValhallaRouteRequest request, CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(request);
 
-		var response = await _http.PostAsJsonAsync("route", request, JsonOptions, cancellationToken);
+		var httpResponse = await _http.PostAsJsonAsync("route", request, JsonOptions, cancellationToken);
 
-		if (!response.IsSuccessStatusCode)
-		{
-			var body = await response.Content.ReadAsStringAsync(cancellationToken);
-			throw new InvalidOperationException(
-				$"Valhalla returned HTTP {(int)response.StatusCode}: {body}");
-		}
+		httpResponse.EnsureSuccessStatusCode();
 
-		var result = await response.Content.ReadFromJsonAsync<ValhallaRouteResponse>(
-			JsonOptions,
-			cancellationToken: cancellationToken);
+		var body = await httpResponse.Content
+			.ReadFromJsonAsync<ValhallaRouteResponse>(JsonOptions, cancellationToken);
 
-		if (result is null)
-			throw new InvalidOperationException("Valhalla returned an empty response body.");
+		if (body is null)
+			throw new InvalidOperationException("Valhalla returned an empty response body for /route.");
 
-		return result;
+		return body;
 	}
+	#endregion
 }
