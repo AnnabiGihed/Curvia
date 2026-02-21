@@ -15,6 +15,15 @@ internal static class HostingExtensions
 		app.UseMiddleware<OutboxProcessingMiddleware<CurviaDbContext>>();
 		app.UseMiddleware<TransactionMiddleware<CurviaDbContext>>();
 
+		if (app.Environment.IsDevelopment())
+		{
+			app.UseSwagger();
+			app.UseSwaggerUI(c =>
+			{
+				c.SwaggerEndpoint("/swagger/v1/swagger.json", "Curvia API");
+			});
+		}
+
 		app.UseSerilogRequestLogging();
 
 		app.UseHttpsRedirection();

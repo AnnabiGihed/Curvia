@@ -1,4 +1,7 @@
-﻿using System.Reflection;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc.Authorization;
+using System.Reflection;
+using System.Text.Json.Serialization;
 using Templates.Core.Tools.DependencyInjection;
 using Templates.Core.Tools.DependencyInjection.Abstractions;
 
@@ -12,6 +15,21 @@ public sealed class ApiServiceInstaller : BaseServiceInstaller, IServiceInstalle
 		{
 			base.IncludeConventionBasedRegistrations(services, configuration, new List<Assembly>() { AssemblyReference.Assembly }.ToArray());
 		}
+
+
+		// Default authorization policy for all endpoints
+		var requireAuthenticatedUserPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
+
+		// Configure controllers with default authorization filter
+		services.AddControllers(configure =>
+		{
+			configure.Filters.Add(new AuthorizeFilter(requireAuthenticatedUserPolicy));
+		})
+		.AddJsonOptions(options =>
+		{
+			options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+		});
+
 
 		#region CORS
 		// "Open" policy referenced in HostingExtensions.ConfigurePipeline().
@@ -29,6 +47,9 @@ public sealed class ApiServiceInstaller : BaseServiceInstaller, IServiceInstalle
 		// Keycloak integration comes in V2.
 		services.AddAuthentication();
 		services.AddAuthorization();
+
+		services.AddEndpointsApiExplorer();
+		services.AddSwaggerGen();
 		#endregion
 	}
 }

@@ -14,8 +14,10 @@ namespace Curvia.Application.Features.Routing.Routes.Contracts.Engines.Valhalla.
 /// <param name="CostingOptions">Motorcycle-specific costing parameters.</param>
 /// <param name="DirectionsOptions">Output formatting options (units, language).</param>
 /// <param name="ExcludePolygons">
-/// Optional list of polygons to exclude from routing.
+/// Optional list of polygon rings to exclude from routing.
+/// Each element is a closed ring represented as a list of [longitude, latitude] pairs.
+/// Valhalla format: exclude_polygons = [ [[lon,lat],[lon,lat],...], ... ]
 /// Used for DifferentRoute loop return legs to force a different path from the outbound.
 /// Null = no exclusions.
 /// </param>
-public sealed record ValhallaRouteRequest(IReadOnlyList<ValhallaLocation> Locations, string Costing, ValhallaCostingOptions CostingOptions,	ValhallaDirectionsOptions DirectionsOptions, IReadOnlyList<ExcludePolygon>? ExcludePolygons = null);
+public sealed record ValhallaRouteRequest(IReadOnlyList<ValhallaLocation> Locations, string Costing, ValhallaCostingOptions CostingOptions,	ValhallaDirectionsOptions DirectionsOptions, IReadOnlyList<double[][]>? ExcludePolygons = null);

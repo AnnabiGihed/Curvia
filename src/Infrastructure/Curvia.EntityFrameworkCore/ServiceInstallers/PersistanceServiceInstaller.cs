@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System.Reflection;
+using Templates.Core.Infrastructure.Abstraction.Transaction;
+using Templates.Core.Infrastructure.Persistence.EntityFrameworkCore.Transaction;
 using Templates.Core.Tools.DependencyInjection;
 using Templates.Core.Tools.DependencyInjection.Abstractions;
 
@@ -19,6 +21,10 @@ public sealed class PersistanceServiceInstaller : BaseServiceInstaller, IService
 
 		#region DbContext
 		services.AddDbContext<CurviaDbContext>(options => options.UseSqlServer(configuration.GetConnectionString($"{nameof(CurviaDbContext)}ConnectionString")));
+		#endregion
+
+		#region Transaction
+		services.AddScoped(typeof(ITransactionManager<CurviaDbContext>), typeof(TransactionManager<CurviaDbContext>));
 		#endregion
 	}
 }
