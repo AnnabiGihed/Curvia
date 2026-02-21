@@ -12,51 +12,69 @@ namespace Curvia.Infrastructure.Features.Routing.Routes.Engines.Valhalla.Candida
 /// Date        : 02-2026
 /// Purpose     : Generates Valhalla route candidates for a given RoutePlan.
 ///
-///              Produces 3 named variants per call. Each differs in road-character preference
-///              so the scoring service can evaluate genuinely distinct options:
+/// ═══════════════════════════════════════════════════════════════════════
+/// CORE DESIGN: LATERAL WAYPOINTS FOR ALL POINT-TO-POINT ROUTES
+/// ═══════════════════════════════════════════════════════════════════════
 ///
-///                twisty-hills   — use_hills=0.8. Prefers hilly terrain. Capped at 0.8
-///                                 (not 1.0) to prevent Valhalla chasing dead-end hill roads.
-///                                 At 1.0, Valhalla follows any gradient regardless of
-///                                 connectivity, producing U-turns and backtrack artifacts.
+/// Valhalla motorcycle costing has no use_hills parameter (bicycle-only).
+/// Sending it is silently ignored — zero effect on routing.
+/// Without something to force Valhalla off the direct corridor, all three
+/// costing variants converge on the same flat N-road path.
 ///
-///                scenic-valley  — use_hills=0.6. Moderate hill preference, allows minor
-///                                 highways to connect valley sections (Meuse, Ourthe, Semois).
+/// Solution: every variant gets a DIFFERENT lateral "through" waypoint placed
+/// off the direct axis. Valhalla MUST route through that point, which forces
+/// it through geographically different terrain (valleys, ridges, back roads).
 ///
-///                explorer       — use_hills=0.5. Balanced. Avoids tolls, slight unpaved
-///                                 tolerance. Discovers secondary roads the other variants
-///                                 miss without hill-obsession artifacts.
+/// ═══════════════════════════════════════════════════════════════════════
+/// OUTBOUND (Start → End) — GeneratePointToPointVariantsAsync
+/// ═══════════════════════════════════════════════════════════════════════
 ///
-///              Perpendicular waypoint strategy for round-trip return legs:
-///                A "through" waypoint is placed perpendicular to the midpoint of the
-///                End→Start axis to pull the return route off the outbound corridor.
-///                PerpendicularOffsetRatio reduced from 30% → 20% to avoid placing
-///                the waypoint in geographically inaccessible terrain (hilltops, forests,
-///                dead-end valleys) that cause Valhalla to produce U-turn artifacts.
-///                Two opposite directions are tried; the scorer picks the better candidate.
+///   left-early  — waypoint at 40% along axis, LEFT,  25% lateral offset
+///   right-mid   — waypoint at 55% along axis, RIGHT, 20% lateral offset
+///   left-late   — waypoint at 65% along axis, LEFT,  15% lateral offset
+///
+/// ═══════════════════════════════════════════════════════════════════════
+/// RETURN LEG (End → Start) — GenerateRoundTripReturnVariantsAsync
+/// ═══════════════════════════════════════════════════════════════════════
+///
+/// The return leg previously used a single perpendicular midpoint waypoint,
+/// producing identical results every call (same waypoint = same road).
+///
+/// Fixed: same lateral waypoint strategy as the outbound, applied to the
+/// reversed axis (End → Start). Different positions and sides than the
+/// outbound, so the return uses genuinely different corridors:
+///
+///   return-right-early — waypoint at 35% of End→Start, RIGHT, 22% offset
+///   return-left-mid    — waypoint at 50% of End→Start, LEFT,  18% offset
+///   return-right-late  — waypoint at 60% of End→Start, RIGHT, 14% offset
+///
+/// The positions and sides are intentionally different from the outbound
+/// (outbound uses left-40%, right-55%, left-65%) to maximise road variety.
+///
+/// ═══════════════════════════════════════════════════════════════════════
+/// LOOPS — Direct intermediate offset
+/// ═══════════════════════════════════════════════════════════════════════
+///
+/// For loops: Start → east-offset intermediate → Start.
+/// DifferentRoute: south-offset + bbox exclusion for the return.
+///
+/// ═══════════════════════════════════════════════════════════════════════
+/// LATERAL OFFSET CLAMPING
+/// ═══════════════════════════════════════════════════════════════════════
+///
+///   Min: 12 km — ensures waypoint is far enough off the main road
+///   Max: 45 km — prevents waypoint landing in inaccessible terrain
 /// </summary>
 internal sealed class RouteCandidateGeneratorService : IRouteCandidateGeneratorService
 {
-	#region Fields
+	#region Constants
 	private readonly IValhallaRoutingClient _client;
 	private const double EarthRadiusMeters = 6_371_000.0;
 
-	/// <summary>
-	/// Perpendicular offset as a fraction of the straight-line journey distance.
-	/// Reduced from 0.30 to 0.20 to keep waypoints closer to the main road network
-	/// and avoid dead-end terrain that causes U-turn artifacts.
-	/// </summary>
-	private const double PerpendicularOffsetRatio = 0.20;
-
-	/// <summary>Minimum perpendicular offset in meters.</summary>
-	private const double MinPerpendicularOffsetMeters = 10_000;
-
-	/// <summary>
-	/// Maximum perpendicular offset in meters.
-	/// Reduced from 80 km to 50 km — large offsets frequently land in forests or
-	/// dead-end valleys, especially in hilly terrain like the Ardennes.
-	/// </summary>
-	private const double MaxPerpendicularOffsetMeters = 50_000;
+	// Lateral offset for outbound and return leg lateral waypoints
+	private const double LateralOffsetFraction = 0.25;
+	private const double MinLateralOffsetMeters = 12_000;
+	private const double MaxLateralOffsetMeters = 45_000;
 	#endregion
 
 	#region Constructor
@@ -66,18 +84,31 @@ internal sealed class RouteCandidateGeneratorService : IRouteCandidateGeneratorS
 	}
 	#endregion
 
-	#region IRouteCandidateGeneratorService — Outbound
+	// ═══════════════════════════════════════════════════════════════
+	// IRouteCandidateGeneratorService — Outbound
+	// ═══════════════════════════════════════════════════════════════
+
 	/// <inheritdoc/>
-	public async Task<IReadOnlyList<RouteCandidate>> GenerateAsync(RoutePlan plan, CancellationToken cancellationToken = default)
+	public async Task<IReadOnlyList<RouteCandidate>> GenerateAsync(
+		RoutePlan plan,
+		CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(plan);
-		var variants = BuildVariants(plan);
-		var locations = BuildLocations(plan, intermediateOffsetBearing: null);
+
+		// Point-to-point without explicit user waypoints → lateral waypoint strategy
+		if (plan.End is not null && plan.Waypoints.Count == 0)
+			return await GeneratePointToPointVariantsAsync(plan, plan.Start, plan.End, isReturn: false, cancellationToken);
+
+		// Loops and explicit-waypoint routes → costing-only variants, direct path
+		var variants = BuildCostingVariants(plan);
+		var locations = BuildDirectLocations(plan, intermediateOffsetBearing: null);
 		return await ExecuteVariantsAsync(locations, variants, excludePolygons: null, cancellationToken);
 	}
-	#endregion
 
-	#region IRouteCandidateGeneratorService — DifferentRoute loop return
+	// ═══════════════════════════════════════════════════════════════
+	// IRouteCandidateGeneratorService — DifferentRoute loop return
+	// ═══════════════════════════════════════════════════════════════
+
 	/// <inheritdoc/>
 	public async Task<IReadOnlyList<RouteCandidate>> GenerateReturnAsync(
 		RoutePlan plan,
@@ -87,14 +118,16 @@ internal sealed class RouteCandidateGeneratorService : IRouteCandidateGeneratorS
 		ArgumentNullException.ThrowIfNull(plan);
 		ArgumentNullException.ThrowIfNull(outboundResponse);
 
-		var variants = BuildVariants(plan);
-		var locations = BuildLocations(plan, intermediateOffsetBearing: 180.0);
+		var variants = BuildCostingVariants(plan);
+		var locations = BuildDirectLocations(plan, intermediateOffsetBearing: 180.0);
 		var excludePolygons = BuildExcludePolygons(outboundResponse);
 		return await ExecuteVariantsAsync(locations, variants, excludePolygons, cancellationToken);
 	}
-	#endregion
 
-	#region IRouteCandidateGeneratorService — Point-to-point round trip return
+	// ═══════════════════════════════════════════════════════════════
+	// IRouteCandidateGeneratorService — Round-trip return leg
+	// ═══════════════════════════════════════════════════════════════
+
 	/// <inheritdoc/>
 	public async Task<IReadOnlyList<RouteCandidate>> GenerateRoundTripReturnAsync(
 		RoutePlan plan,
@@ -106,41 +139,158 @@ internal sealed class RouteCandidateGeneratorService : IRouteCandidateGeneratorS
 
 		if (plan.End is null)
 			throw new InvalidOperationException(
-				"GenerateRoundTripReturnAsync requires a point-to-point plan with a non-null End coordinate.");
+				"GenerateRoundTripReturnAsync requires a point-to-point plan with a non-null End.");
 
-		var variants = BuildVariants(plan);
-
-		// Try both perpendicular directions — scorer picks the better candidate.
-		// Both run without exclusion polygons (exclusion bbox breaks point-to-point).
-		var locationsLeft = BuildRoundTripReturnLocations(plan, perpendicularDirection: +1);
-		var locationsRight = BuildRoundTripReturnLocations(plan, perpendicularDirection: -1);
-
-		var leftTask = ExecuteVariantsAsync(locationsLeft, variants, excludePolygons: null, cancellationToken);
-		var rightTask = ExecuteVariantsAsync(locationsRight, variants, excludePolygons: null, cancellationToken);
-
-		var results = await Task.WhenAll(leftTask, rightTask);
-		return results[0].Concat(results[1]).ToList();
+		// Return leg direction is End → Start (reversed axis).
+		// Uses the same lateral waypoint strategy as the outbound but with
+		// different positions and sides to maximise road variety.
+		return await GeneratePointToPointVariantsAsync(
+			plan,
+			origin: plan.End,
+			destination: plan.Start,
+			isReturn: true,
+			cancellationToken);
 	}
-	#endregion
 
-	#region Private — Variant definitions
+	// ═══════════════════════════════════════════════════════════════
+	// PRIVATE — Lateral waypoint variant generation (outbound + return)
+	// ═══════════════════════════════════════════════════════════════
 
 	/// <summary>
-	/// Builds 3 route variants differentiated by use_hills and highway tolerance.
+	/// Generates 3 candidates, each routed through a different lateral waypoint.
 	///
-	/// use_hills tuning rationale:
-	///   use_hills = 1.0 → Valhalla chases ANY gradient, including dead-end hill roads,
-	///                      single-track forest tracks and culs-de-sac. Produces U-turn and
-	///                      backtrack artifacts visible in the Cetturu and Hermeton sections.
-	///   use_hills = 0.8 → Prefers hilly terrain but Valhalla still requires road connectivity.
-	///                      Finds Meuse valley roads, Ardennes ridge routes without dead-ends.
-	///   use_hills = 0.5 → Balanced. Routes through hilly areas when practical but does not
-	///                      sacrifice connectivity. Best fallback candidate.
+	/// For the outbound (isReturn = false):
+	///   left-early  — 40% along axis, LEFT,  25% offset
+	///   right-mid   — 55% along axis, RIGHT, 20% offset
+	///   left-late   — 65% along axis, LEFT,  15% offset
 	///
-	/// Hard rider constraints (avoidHighways, avoidTolls, avoidUnpaved, urbanTolerance)
-	/// override variant defaults.
+	/// For the return leg (isReturn = true):
+	///   return-right-early — 35% along End→Start axis, RIGHT, 22% offset
+	///   return-left-mid    — 50% along End→Start axis, LEFT,  18% offset
+	///   return-right-late  — 60% along End→Start axis, RIGHT, 14% offset
+	///
+	/// Positions and sides differ from the outbound intentionally — if the outbound
+	/// used the Meuse-west corridor (left of Brussels→Houffalize axis), the return
+	/// uses the right side, pulling it toward the Ourthe/Liège-side valleys.
 	/// </summary>
-	private static (string Name, ValhallaMotorcycleOptions Moto)[] BuildVariants(RoutePlan plan)
+	private async Task<IReadOnlyList<RouteCandidate>> GeneratePointToPointVariantsAsync(
+		RoutePlan plan,
+		GeoCoordinate origin,
+		GeoCoordinate destination,
+		bool isReturn,
+		CancellationToken cancellationToken)
+	{
+		var straightMeters = HaversineMeters(origin, destination);
+		var lateralBase = Math.Clamp(
+			straightMeters * LateralOffsetFraction,
+			MinLateralOffsetMeters,
+			MaxLateralOffsetMeters);
+
+		var forwardBearing = Bearing(origin, destination);
+		var leftBearing = (forwardBearing - 90.0 + 360.0) % 360.0;
+		var rightBearing = (forwardBearing + 90.0) % 360.0;
+
+		// Outbound and return variants use different positions + sides so that together
+		// they explore genuinely different parts of the terrain between the two cities.
+		var variants = isReturn
+			? new[]
+			{
+				// Return: right-early, left-mid, right-late
+				// (opposite sides from outbound left-early, right-mid, left-late)
+				(
+					Name:     "return-right-early",
+					Waypoint: LateralWaypoint(origin, destination, progress: 0.35, bearing: rightBearing, meters: lateralBase * 0.88),
+					Costing:  MakeCosting(plan, useHighways: 0.05, useTolls: 0.3)
+				),
+				(
+					Name:     "return-left-mid",
+					Waypoint: LateralWaypoint(origin, destination, progress: 0.50, bearing: leftBearing,  meters: lateralBase * 0.72),
+					Costing:  MakeCosting(plan, useHighways: 0.2,  useTolls: 0.5)
+				),
+				(
+					Name:     "return-right-late",
+					Waypoint: LateralWaypoint(origin, destination, progress: 0.60, bearing: rightBearing, meters: lateralBase * 0.56),
+					Costing:  MakeCosting(plan, useHighways: 0.15, useTolls: 0.0, allowSlightUnpaved: true)
+				)
+			}
+			: new[]
+			{
+				// Outbound: left-early, right-mid, left-late
+				(
+					Name:     "left-early",
+					Waypoint: LateralWaypoint(origin, destination, progress: 0.40, bearing: leftBearing,  meters: lateralBase),
+					Costing:  MakeCosting(plan, useHighways: 0.05, useTolls: 0.3)
+				),
+				(
+					Name:     "right-mid",
+					Waypoint: LateralWaypoint(origin, destination, progress: 0.55, bearing: rightBearing, meters: lateralBase * 0.80),
+					Costing:  MakeCosting(plan, useHighways: 0.2,  useTolls: 0.5)
+				),
+				(
+					Name:     "left-late",
+					Waypoint: LateralWaypoint(origin, destination, progress: 0.65, bearing: leftBearing,  meters: lateralBase * 0.60),
+					Costing:  MakeCosting(plan, useHighways: 0.15, useTolls: 0.0, allowSlightUnpaved: true)
+				)
+			};
+
+		var results = new List<RouteCandidate>(variants.Length);
+
+		foreach (var (name, waypoint, costing) in variants)
+		{
+			var locations = new List<ValhallaLocation>
+			{
+				new(origin.Latitude,      origin.Longitude,      "break"),
+				new(waypoint.Lat,         waypoint.Lon,           "through"),
+				new(destination.Latitude, destination.Longitude, "break")
+			};
+
+			try
+			{
+				var req = new ValhallaRouteRequest(
+					Locations: locations,
+					Costing: "motorcycle",
+					CostingOptions: new ValhallaCostingOptions(costing),
+					DirectionsOptions: new ValhallaDirectionsOptions(),
+					ExcludePolygons: null);
+
+				var raw = await _client.RouteAsync(req, cancellationToken);
+				results.Add(new RouteCandidate(raw, name));
+			}
+			catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or OperationCanceledException)
+			{
+				// Waypoint inaccessible or Valhalla timeout — skip this variant.
+			}
+		}
+
+		return results;
+	}
+
+	/// <summary>
+	/// Computes a lateral intermediate waypoint at <paramref name="progress"/> fraction
+	/// along the origin→destination axis, then offset laterally by <paramref name="meters"/>.
+	/// </summary>
+	private static (double Lat, double Lon) LateralWaypoint(
+		GeoCoordinate origin,
+		GeoCoordinate destination,
+		double progress,
+		double bearing,
+		double meters)
+	{
+		var axisLat = origin.Latitude + progress * (destination.Latitude - origin.Latitude);
+		var axisLon = origin.Longitude + progress * (destination.Longitude - origin.Longitude);
+		var axisPoint = GeoCoordinate.Create(axisLat, axisLon).Value;
+		return ComputeOffsetCoordinate(axisPoint, bearing, meters);
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// PRIVATE — Costing helpers
+	// ═══════════════════════════════════════════════════════════════
+
+	private static ValhallaMotorcycleOptions MakeCosting(
+		RoutePlan plan,
+		double useHighways,
+		double useTolls,
+		bool allowSlightUnpaved = false)
 	{
 		var c = plan.Constraints;
 
@@ -152,63 +302,37 @@ internal sealed class RouteCandidateGeneratorService : IRouteCandidateGeneratorS
 			_ => 0.6
 		};
 
-		var serviceFactor = c.UrbanTolerance switch
-		{
-			UrbanTolerance.None => 0.3,
-			UrbanTolerance.PassThrough => 0.6,
-			UrbanTolerance.Allowed => 1.0,
-			_ => 1.0
-		};
+		var useTrails = c.AvoidUnpaved ? 0.0 : (allowSlightUnpaved ? 0.3 : 0.5);
 
-		var useTrails = c.AvoidUnpaved ? 0.0 : 0.5;
-		var highwayBase = c.AvoidHighways ? 0.0 : -1.0;
-		var tollBase = c.AvoidTolls ? 0.0 : -1.0;
+		if (c.AvoidHighways) useHighways = 0.0;
+		if (c.AvoidTolls) useTolls = 0.0;
 
-		double Highways(double d) => highwayBase >= 0 ? highwayBase : d;
-		double Tolls(double d) => tollBase >= 0 ? tollBase : d;
-
-		return new (string Name, ValhallaMotorcycleOptions Moto)[]
-		{
-			// Variant 1 — twisty-hills: strong hill preference (0.8, not 1.0).
-			// 1.0 caused dead-end and backtrack artifacts. 0.8 still produces
-			// hilly/curvy routes while requiring Valhalla to maintain road connectivity.
-			("twisty-hills", new ValhallaMotorcycleOptions(
-				UseHighways:      Highways(0.05),
-				UseTolls:         Tolls(0.3),
-				UseTrails:        useTrails,
-				UseLivingStreets: livingStreets,
-				UseHills:         0.8,
-				ServiceFactor:    serviceFactor)),
-
-			// Variant 2 — scenic-valley: moderate hill preference (0.6), allows minor
-			// highways. Finds river-valley roads (Meuse, Ourthe, Semois) without
-			// insisting on every available gradient.
-			("scenic-valley", new ValhallaMotorcycleOptions(
-				UseHighways:      Highways(0.2),
-				UseTolls:         Tolls(0.5),
-				UseTrails:        useTrails,
-				UseLivingStreets: livingStreets,
-				UseHills:         0.6,
-				ServiceFactor:    serviceFactor)),
-
-			// Variant 3 — explorer: balanced hills (0.5), zero tolls, slight unpaved
-			// tolerance. Discovers secondary roads and farm tracks the other variants
-			// skip without producing hill-chasing artifacts.
-			("explorer", new ValhallaMotorcycleOptions(
-				UseHighways:      Highways(0.15),
-				UseTolls:         Tolls(0.0),
-				UseTrails:        Math.Max(useTrails, 0.2),
-				UseLivingStreets: livingStreets,
-				UseHills:         0.5,
-				ServiceFactor:    serviceFactor))
-		};
+		return new ValhallaMotorcycleOptions(
+			UseHighways: useHighways,
+			UseTolls: useTolls,
+			UseTrails: useTrails,
+			UseLivingStreets: livingStreets);
 	}
 
-	#endregion
+	/// <summary>
+	/// Costing-only variants used for loops and routes with explicit user waypoints.
+	/// Lateral waypoint variants are used for all point-to-point routes.
+	/// </summary>
+	private static (string Name, ValhallaMotorcycleOptions Moto)[] BuildCostingVariants(RoutePlan plan) =>
+		new[]
+		{
+			("balanced", MakeCosting(plan, useHighways: 0.7,  useTolls: 0.9)),
+			("scenic",   MakeCosting(plan, useHighways: 0.1,  useTolls: 0.5)),
+			("explorer", MakeCosting(plan, useHighways: 0.2,  useTolls: 0.0, allowSlightUnpaved: true))
+		};
 
-	#region Private — Location building
+	// ═══════════════════════════════════════════════════════════════
+	// PRIVATE — Location building (loops / explicit waypoints)
+	// ═══════════════════════════════════════════════════════════════
 
-	private static IReadOnlyList<ValhallaLocation> BuildLocations(RoutePlan plan, double? intermediateOffsetBearing)
+	private static IReadOnlyList<ValhallaLocation> BuildDirectLocations(
+		RoutePlan plan,
+		double? intermediateOffsetBearing)
 	{
 		var list = new List<ValhallaLocation>();
 		list.Add(new ValhallaLocation(plan.Start.Latitude, plan.Start.Longitude, "break"));
@@ -236,56 +360,9 @@ internal sealed class RouteCandidateGeneratorService : IRouteCandidateGeneratorS
 		return list;
 	}
 
-	/// <summary>
-	/// Builds return leg locations: End → perpendicular_midpoint → Start.
-	/// The perpendicular offset is 20% of the straight-line distance (reduced from 30%)
-	/// to keep the waypoint within the main road network and avoid dead-end terrain.
-	/// </summary>
-	private static IReadOnlyList<ValhallaLocation> BuildRoundTripReturnLocations(
-		RoutePlan plan,
-		int perpendicularDirection)
-	{
-		var end = plan.End!;
-		var start = plan.Start;
-
-		var midLat = (end.Latitude + start.Latitude) / 2.0;
-		var midLon = (end.Longitude + start.Longitude) / 2.0;
-		var midpoint = GeoCoordinate.Create(midLat, midLon).Value;
-
-		var bearingEndToStart = Bearing(end, start);
-		var perpendicularBearing = (bearingEndToStart + 90.0 * perpendicularDirection + 360.0) % 360.0;
-
-		var straightLineMeters = HaversineMeters(end, start);
-		var offsetMeters = Math.Clamp(
-			straightLineMeters * PerpendicularOffsetRatio,
-			MinPerpendicularOffsetMeters,
-			MaxPerpendicularOffsetMeters);
-
-		var perpendicularPoint = ComputeOffsetCoordinate(midpoint, perpendicularBearing, offsetMeters);
-
-		var list = new List<ValhallaLocation>
-		{
-			new(end.Latitude,                end.Longitude,                "break"),
-			new(perpendicularPoint.Lat,      perpendicularPoint.Lon,       "through"),
-			new(start.Latitude,              start.Longitude,              "break")
-		};
-
-		// Reverse waypoints (if any) for the return direction
-		var waypointList = plan.Waypoints.Reverse().ToList();
-		if (waypointList.Count > 0)
-		{
-			list.RemoveAt(list.Count - 1);
-			foreach (var wp in waypointList)
-				list.Add(new ValhallaLocation(wp.Location.Latitude, wp.Location.Longitude, "through"));
-			list.Add(new ValhallaLocation(start.Latitude, start.Longitude, "break"));
-		}
-
-		return list;
-	}
-
-	#endregion
-
-	#region Private — Execution
+	// ═══════════════════════════════════════════════════════════════
+	// PRIVATE — Execution
+	// ═══════════════════════════════════════════════════════════════
 
 	private async Task<IReadOnlyList<RouteCandidate>> ExecuteVariantsAsync(
 		IReadOnlyList<ValhallaLocation> locations,
@@ -309,18 +386,18 @@ internal sealed class RouteCandidateGeneratorService : IRouteCandidateGeneratorS
 				var raw = await _client.RouteAsync(req, cancellationToken);
 				results.Add(new RouteCandidate(raw, name));
 			}
-			catch (HttpRequestException)
+			catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or OperationCanceledException)
 			{
-				// Skip — no path for these constraints/waypoints.
+				// No routable path or timeout — skip silently.
 			}
 		}
 
 		return results;
 	}
 
-	#endregion
-
-	#region Private — Exclusion polygon (DifferentRoute loops only)
+	// ═══════════════════════════════════════════════════════════════
+	// PRIVATE — Exclusion polygon (DifferentRoute loops only)
+	// ═══════════════════════════════════════════════════════════════
 
 	private static IReadOnlyList<double[][]> BuildExcludePolygons(ValhallaRouteResponse outbound)
 	{
@@ -345,21 +422,22 @@ internal sealed class RouteCandidateGeneratorService : IRouteCandidateGeneratorS
 		minLat -= latPad; maxLat += latPad;
 		minLon -= lonPad; maxLon += lonPad;
 
-		var ring = new double[][]
+		return new List<double[][]>
 		{
-			new[] { minLon, minLat },
-			new[] { maxLon, minLat },
-			new[] { maxLon, maxLat },
-			new[] { minLon, maxLat },
-			new[] { minLon, minLat }
+			new double[][]
+			{
+				new[] { minLon, minLat },
+				new[] { maxLon, minLat },
+				new[] { maxLon, maxLat },
+				new[] { minLon, maxLat },
+				new[] { minLon, minLat }
+			}
 		};
-
-		return new List<double[][]> { ring };
 	}
 
-	#endregion
-
-	#region Private — Geodesy helpers
+	// ═══════════════════════════════════════════════════════════════
+	// PRIVATE — Geodesy helpers
+	// ═══════════════════════════════════════════════════════════════
 
 	private static (double Lat, double Lon) ComputeOffsetCoordinate(
 		GeoCoordinate origin, double bearingDegrees, double distanceMeters)
@@ -367,15 +445,15 @@ internal sealed class RouteCandidateGeneratorService : IRouteCandidateGeneratorS
 		var lat1 = ToRad(origin.Latitude);
 		var lon1 = ToRad(origin.Longitude);
 		var bearing = ToRad(bearingDegrees);
-		var angDist = distanceMeters / EarthRadiusMeters;
+		var d = distanceMeters / EarthRadiusMeters;
 
 		var lat2 = Math.Asin(
-			Math.Sin(lat1) * Math.Cos(angDist) +
-			Math.Cos(lat1) * Math.Sin(angDist) * Math.Cos(bearing));
+			Math.Sin(lat1) * Math.Cos(d) +
+			Math.Cos(lat1) * Math.Sin(d) * Math.Cos(bearing));
 
 		var lon2 = lon1 + Math.Atan2(
-			Math.Sin(bearing) * Math.Sin(angDist) * Math.Cos(lat1),
-			Math.Cos(angDist) - Math.Sin(lat1) * Math.Sin(lat2));
+			Math.Sin(bearing) * Math.Sin(d) * Math.Cos(lat1),
+			Math.Cos(d) - Math.Sin(lat1) * Math.Sin(lat2));
 
 		return (ToDeg(lat2), ToDeg(lon2));
 	}
@@ -394,16 +472,13 @@ internal sealed class RouteCandidateGeneratorService : IRouteCandidateGeneratorS
 	{
 		var dLat = ToRad(b.Latitude - a.Latitude);
 		var dLon = ToRad(b.Longitude - a.Longitude);
-		var lat1 = ToRad(a.Latitude);
-		var lat2 = ToRad(b.Latitude);
 		var sinDLat = Math.Sin(dLat / 2);
 		var sinDLon = Math.Sin(dLon / 2);
-		var h = sinDLat * sinDLat + Math.Cos(lat1) * Math.Cos(lat2) * sinDLon * sinDLon;
+		var h = sinDLat * sinDLat +
+				Math.Cos(ToRad(a.Latitude)) * Math.Cos(ToRad(b.Latitude)) * sinDLon * sinDLon;
 		return 2 * EarthRadiusMeters * Math.Asin(Math.Min(1.0, Math.Sqrt(h)));
 	}
 
 	private static double ToRad(double d) => d * Math.PI / 180.0;
 	private static double ToDeg(double r) => r * 180.0 / Math.PI;
-
-	#endregion
 }

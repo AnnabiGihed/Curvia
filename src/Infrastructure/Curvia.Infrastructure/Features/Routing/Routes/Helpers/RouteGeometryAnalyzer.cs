@@ -12,14 +12,30 @@ namespace Curvia.Infrastructure.Features.Routing.Routes.Helpers;
 ///                2. Compute angular delta between consecutive headings
 ///                3. Filter noise (delta &lt; 5°) and micro-zigzags (segment &lt; 20 m)
 ///                4. Apply flow detection: sustained curve sequences score higher
-///                5. Normalise to [0, 1] using empirical road benchmarks
+///                5. Normalise to [0, 1] using regional road benchmarks
+///
+///              CALIBRATION NOTE — regional ceiling vs. Alpine ceiling:
+///                The ceiling of 350°/km was benchmarked against the Stelvio Pass (~400°/km).
+///                For routes in Belgium, the Netherlands, and Northern France — the primary
+///                Curvia deployment region — the empirical data shows:
+///
+///                  Flat Brabant Walloon N-roads:    5–15°/km
+///                  Typical Ardennes secondary road: 40–80°/km (with flow bonus: 50–100°/km)
+///                  Best Wallonian twisty roads:     100–150°/km (Dinant gorge, Fonds de Quareux)
+///                  Alpine passes (Stelvio, etc.):   300–400°/km
+///
+///                With the Alpine ceiling of 350, even the very best Belgian routes scored
+///                only 0.28–0.43, making all Belgian routes 1-star regardless of real quality.
+///                The ceiling is now set to 150°/km — the regional benchmark for an
+///                "exceptionally twisty" road within the deployment area.
+///                Routes that reach the Alpine tier will naturally be clamped to 1.0.
 /// </summary>
 internal static class RouteGeometryAnalyzer
 {
 	#region Constants
+
 	/// <summary>
 	/// Number of consecutive curve segments required to qualify as a "flowing" curve sequence.
-	/// Flowing sequences receive a bonus multiplier.
 	/// </summary>
 	private const int FlowSequenceThreshold = 3;
 
@@ -34,16 +50,33 @@ internal static class RouteGeometryAnalyzer
 
 	/// <summary>
 	/// Empirical curvature index (°/km) that maps to a score of 1.0.
-	/// Roads above the Stelvio Pass in the Alps reach ~400°/km.
-	/// 350°/km is a realistic ceiling for "perfect" twisty routes in Europe.
+	///
+	/// CALIBRATION:
+	///   Previous value: 350°/km (Stelvio Pass / Alpine benchmark).
+	///   This made even the best Wallonian roads score 0.3–0.4, producing
+	///   1-star ratings on excellent routes through the Dinant gorge and Durbuy.
+	///
+	///   New value: 150°/km (Wallonian / North-European benchmark).
+	///   Represents the curvature of the most twisty sustained motorcycle roads
+	///   accessible in the primary Curvia deployment region (Belgium, Luxembourg,
+	///   northern France, western Germany).
+	///
+	///   Reference roads:
+	///     Dinant gorge (N92/N936):       ~120–150°/km
+	///     Fonds de Quareux (Ourthe):     ~100–130°/km
+	///     Semois valley (N884):          ~90–120°/km
+	///     Typical Ardennes secondary:    ~40–80°/km
+	///     Routes exceeding 150°/km (Alpine, Pyrenees) → clamped to 1.0 as expected.
 	/// </summary>
-	private const double CurvatureIndexCeiling = 350.0;
+	private const double CurvatureIndexCeiling = 150.0;
 
 	/// <summary>Earth's mean radius in meters for Haversine calculations.</summary>
 	private const double EarthRadiusMeters = 6_371_000.0;
+
 	#endregion
 
 	#region Public API
+
 	/// <summary>
 	/// Computes a normalised curvature score [0.0, 1.0] for the given route polyline.
 	/// </summary>
@@ -52,8 +85,12 @@ internal static class RouteGeometryAnalyzer
 	/// Minimum 3 points required; fewer points returns 0.
 	/// </param>
 	/// <returns>
-	/// Curvature score where 0.0 = perfectly straight road and 1.0 = extremely twisty
-	/// (equivalent to ~350°/km angular deviation rate).
+	/// Curvature score calibrated to North-European roads:
+	///   0.0  = perfectly straight (motorway / flat N-road)
+	///   0.3  = mildly winding secondary road
+	///   0.6  = good Ardennes secondary road (typical Ourthe/Semois valley)
+	///   0.8  = excellent twisty road (Dinant gorge, Fonds de Quareux)
+	///   1.0  = 150°/km or above (best regional roads / Alpine standard)
 	/// </returns>
 	public static double ComputeCurvatureScore(IReadOnlyList<GeoCoordinate> points)
 	{
@@ -61,7 +98,6 @@ internal static class RouteGeometryAnalyzer
 			return 0.0;
 
 		#region Segment computation
-		// Pre-compute segment lengths and headings for each consecutive pair
 		var segmentCount = points.Count - 1;
 		var lengths = new double[segmentCount];
 		var headings = new double[segmentCount];
@@ -84,7 +120,6 @@ internal static class RouteGeometryAnalyzer
 
 		for (var i = 0; i < segmentCount - 1; i++)
 		{
-			// Skip segments too short to be meaningful
 			if (lengths[i] < MinSegmentLengthMeters)
 			{
 				consecutiveCurveCount = 0;
@@ -93,17 +128,14 @@ internal static class RouteGeometryAnalyzer
 
 			var delta = NormaliseAngle(headings[i + 1] - headings[i]);
 
-			// Skip GPS noise
 			if (delta < MinAngularDeltaDeg)
 			{
 				consecutiveCurveCount = 0;
 				continue;
 			}
 
-			// Accumulate consecutive curve count for flow detection
 			consecutiveCurveCount++;
 
-			// Apply flow bonus for sustained curve sequences
 			var flowMultiplier = consecutiveCurveCount >= FlowSequenceThreshold
 				? FlowBonusMultiplier
 				: 1.0;
@@ -113,61 +145,45 @@ internal static class RouteGeometryAnalyzer
 		#endregion
 
 		#region Normalise to [0, 1]
-		// Curvature index: weighted angular change per kilometre
 		var curvatureIndexPerKm = totalWeightedDelta / (totalDistance / 1000.0);
-
-		// Clamp and normalise against the empirical ceiling
 		var score = Math.Min(curvatureIndexPerKm / CurvatureIndexCeiling, 1.0);
-
 		return Math.Max(score, 0.0);
 		#endregion
 	}
+
 	#endregion
 
 	#region Private — Geometry helpers
-	/// <summary>
-	/// Normalises an angular difference to the range [0, 180] degrees.
-	/// A heading change of 200° clockwise is equivalent to 160° counter-clockwise.
-	/// </summary>
+
 	private static double NormaliseAngle(double delta)
 	{
 		delta = ((delta % 360.0) + 360.0) % 360.0;
 		return delta > 180.0 ? 360.0 - delta : delta;
 	}
 
-	/// <summary>
-	/// Computes the initial compass bearing in degrees [0, 360) from point <paramref name="a"/>
-	/// to point <paramref name="b"/> using the spherical Earth model.
-	/// </summary>
 	private static double Bearing(GeoCoordinate a, GeoCoordinate b)
 	{
 		var lat1 = ToRad(a.Latitude);
 		var lat2 = ToRad(b.Latitude);
 		var dLon = ToRad(b.Longitude - a.Longitude);
-
 		var y = Math.Sin(dLon) * Math.Cos(lat2);
 		var x = Math.Cos(lat1) * Math.Sin(lat2) - Math.Sin(lat1) * Math.Cos(lat2) * Math.Cos(dLon);
-
 		return (ToDeg(Math.Atan2(y, x)) + 360.0) % 360.0;
 	}
-	private static double ToRad(double degrees) => degrees * Math.PI / 180.0;
-	private static double ToDeg(double radians) => radians * 180.0 / Math.PI;
 
-	/// <summary>
-	/// Computes the great-circle distance in meters between two coordinates (Haversine formula).
-	/// </summary>
 	private static double HaversineMeters(GeoCoordinate a, GeoCoordinate b)
 	{
 		var dLat = ToRad(b.Latitude - a.Latitude);
 		var dLon = ToRad(b.Longitude - a.Longitude);
-		var lat1 = ToRad(a.Latitude);
-		var lat2 = ToRad(b.Latitude);
-
 		var sinDLat = Math.Sin(dLat / 2);
 		var sinDLon = Math.Sin(dLon / 2);
-		var h = sinDLat * sinDLat + Math.Cos(lat1) * Math.Cos(lat2) * sinDLon * sinDLon;
-
+		var h = sinDLat * sinDLat +
+				Math.Cos(ToRad(a.Latitude)) * Math.Cos(ToRad(b.Latitude)) * sinDLon * sinDLon;
 		return 2 * EarthRadiusMeters * Math.Asin(Math.Min(1.0, Math.Sqrt(h)));
 	}
+
+	private static double ToRad(double degrees) => degrees * Math.PI / 180.0;
+	private static double ToDeg(double radians) => radians * 180.0 / Math.PI;
+
 	#endregion
 }

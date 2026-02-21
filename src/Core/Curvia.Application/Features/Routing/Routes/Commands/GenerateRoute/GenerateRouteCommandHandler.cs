@@ -19,12 +19,12 @@ namespace Curvia.Application.Features.Routing.Routes.Commands.GenerateRoute;
 ///              Execution flow:
 ///                1.  Resolve scoring profile (preset or custom weights)
 ///                2.  Build RoutePlan domain aggregate from command
-///                3.  Generate outbound candidates (3 Valhalla variants)
+///                3.  Generate outbound candidates (3 Valhalla variants with lateral waypoints)
 ///                4.  Score candidates concurrently (Task.WhenAll)
 ///                5.  Pick the best outbound candidate
 ///                6.  Build outbound Route aggregate from Valhalla response
-///                7a. [RoundTrip]      Generate End→Start return candidates (outbound corridor excluded)
-///                7b. [DifferentRoute] Generate Start→Start return candidates (outbound corridor excluded)
+///                7a. [RoundTrip]      Generate End→Start return candidates
+///                7b. [DifferentRoute] Generate Start→Start return candidates
 ///                8.  Map to response DTO
 /// </summary>
 internal sealed class GenerateRouteCommandHandler : ICommandHandler<GenerateRouteCommand, GenerateRouteResponse>
@@ -41,7 +41,10 @@ internal sealed class GenerateRouteCommandHandler : ICommandHandler<GenerateRout
 	#endregion
 
 	#region Constructor
-	public GenerateRouteCommandHandler(IRouteBuilder routeBuilder, IRouteScoringService scoringService, IRouteCandidateGeneratorService candidateGeneratorService)
+	public GenerateRouteCommandHandler(
+		IRouteBuilder routeBuilder,
+		IRouteScoringService scoringService,
+		IRouteCandidateGeneratorService candidateGeneratorService)
 	{
 		_routeBuilder = routeBuilder ?? throw new ArgumentNullException(nameof(routeBuilder));
 		_scoringService = scoringService ?? throw new ArgumentNullException(nameof(scoringService));
@@ -86,7 +89,6 @@ internal sealed class GenerateRouteCommandHandler : ICommandHandler<GenerateRout
 		#region 7. Return leg (RoundTrip or DifferentRoute loop)
 		ReturnLegDto? returnLeg = null;
 
-		// RoundTrip: point-to-point with a return leg on different roads (End → Start)
 		if (command.RoundTrip && plan.End is not null)
 		{
 			var returnResult = await BuildRoundTripReturnLegAsync(plan, bestOutbound.Raw, cancellationToken);
@@ -94,7 +96,6 @@ internal sealed class GenerateRouteCommandHandler : ICommandHandler<GenerateRout
 				return Result.Failure<GenerateRouteResponse>(returnResult.Error, returnResult.ResultExceptionType);
 			returnLeg = returnResult.Value;
 		}
-		// DifferentRoute loop: two separate circular routes from Start
 		else if (plan.LoopSpec?.ReturnStrategy == ReturnStrategy.DifferentRoute)
 		{
 			var returnResult = await BuildLoopReturnLegAsync(plan, bestOutbound.Raw, cancellationToken);
@@ -112,11 +113,6 @@ internal sealed class GenerateRouteCommandHandler : ICommandHandler<GenerateRout
 
 	#region Private — Return leg builders
 
-	/// <summary>
-	/// Generates and scores the return leg for a point-to-point RoundTrip request.
-	/// Direction: End → Start (exact reversal of the outbound).
-	/// The outbound road corridor is excluded so the return uses genuinely different roads.
-	/// </summary>
 	private async Task<Result<ReturnLegDto>> BuildRoundTripReturnLegAsync(
 		RoutePlan plan,
 		ValhallaRouteResponse outboundResponse,
@@ -126,7 +122,8 @@ internal sealed class GenerateRouteCommandHandler : ICommandHandler<GenerateRout
 
 		try
 		{
-			returnCandidates = await _candidateGenerator.GenerateRoundTripReturnAsync(plan, outboundResponse, cancellationToken);
+			returnCandidates = await _candidateGenerator.GenerateRoundTripReturnAsync(
+				plan, outboundResponse, cancellationToken);
 		}
 		catch (Exception ex)
 		{
@@ -145,10 +142,6 @@ internal sealed class GenerateRouteCommandHandler : ICommandHandler<GenerateRout
 		return await ScoreAndBuildReturnLeg(plan, returnCandidates, cancellationToken);
 	}
 
-	/// <summary>
-	/// Generates and scores the return leg for a DifferentRoute loop.
-	/// Direction: Start → (south offset) → Start, with outbound corridor excluded.
-	/// </summary>
 	private async Task<Result<ReturnLegDto>> BuildLoopReturnLegAsync(
 		RoutePlan plan,
 		ValhallaRouteResponse outboundResponse,
@@ -158,7 +151,8 @@ internal sealed class GenerateRouteCommandHandler : ICommandHandler<GenerateRout
 
 		try
 		{
-			returnCandidates = await _candidateGenerator.GenerateReturnAsync(plan, outboundResponse, cancellationToken);
+			returnCandidates = await _candidateGenerator.GenerateReturnAsync(
+				plan, outboundResponse, cancellationToken);
 		}
 		catch (Exception ex)
 		{
@@ -175,11 +169,6 @@ internal sealed class GenerateRouteCommandHandler : ICommandHandler<GenerateRout
 		return await ScoreAndBuildReturnLeg(plan, returnCandidates, cancellationToken);
 	}
 
-	/// <summary>
-	/// Shared scoring + Route aggregate building for any return leg type.
-	/// Scores all candidates concurrently, picks the best, builds the Route aggregate
-	/// and maps it to a ReturnLegDto.
-	/// </summary>
 	private async Task<Result<ReturnLegDto>> ScoreAndBuildReturnLeg(
 		RoutePlan plan,
 		IReadOnlyList<RouteCandidate> candidates,
@@ -232,9 +221,6 @@ internal sealed class GenerateRouteCommandHandler : ICommandHandler<GenerateRout
 
 	#region Private — Candidate selection
 
-	/// <summary>
-	/// Generates outbound candidates, scores them concurrently and returns the best one.
-	/// </summary>
 	private async Task<Result<(RouteCandidate Candidate, double Score)>> PickBestCandidateAsync(
 		RoutePlan plan,
 		CancellationToken cancellationToken)
@@ -382,7 +368,11 @@ internal sealed class GenerateRouteCommandHandler : ICommandHandler<GenerateRout
 
 	#region Private — Response mapping
 
-	private static GenerateRouteResponse MapToResponse(Route route, string variantName, double score, ReturnLegDto? returnLeg)
+	private static GenerateRouteResponse MapToResponse(
+		Route route,
+		string variantName,
+		double score,
+		ReturnLegDto? returnLeg)
 	{
 		return new GenerateRouteResponse
 		{
@@ -401,21 +391,35 @@ internal sealed class GenerateRouteCommandHandler : ICommandHandler<GenerateRout
 	}
 
 	/// <summary>
-	/// Converts a raw fun score to a 1–5 star rating.
-	///   ≥ 2.5 → 5 stars (Alpine-class twisty mountain roads)
-	///   ≥ 1.5 → 4 stars (Excellent rural/mountain riding)
-	///   ≥ 0.8 → 3 stars (Good secondary roads, some curves)
-	///   ≥ 0.2 → 2 stars (Mostly boring, some mild interest)
-	///   &lt; 0.2 → 1 star  (Flat/straight/urban route)
+	/// Converts a raw fun score to a 1–5 star rating calibrated to the Ardennes/Wallonia region.
+	///
+	/// CALIBRATION (updated alongside RouteGeometryAnalyzer and ElevationAnalyzer ceilings):
+	///   The scoring ceilings are now benchmarked against the best roads in Belgium/Wallonia
+	///   rather than Alpine passes. The achievable funScore range for the deployment region is
+	///   approximately 0.0 (flat urban) to 3.0 (theoretical perfect route at all ceilings).
+	///
+	///   Thresholds are set so that:
+	///     5★ (≥ 1.8) — Exceptional: dedicated twisty Ardennes loop on the very best roads
+	///                   (Bouillon/Semois, Fonds de Quareux, Signal de Botrange circuit).
+	///                   These routes require intentional planning for maximum curvature.
+	///     4★ (≥ 0.9) — Excellent: good Ardennes secondary roads, Meuse gorge sections,
+	///                   Durbuy S-curves. The kind of route a rider would specifically seek out.
+	///     3★ (≥ 0.5) — Good: a mix of Ardennes hills and some flat sections. Worth riding,
+	///                   noticeably more fun than urban commuting. Brussels→Houffalize falls here.
+	///     2★ (≥ 0.15)— Average: mostly flat with occasional interest. Commuter-level route
+	///                   that happens to use secondary roads.
+	///     1★ (< 0.15) — Poor: flat, straight, or urban. Motorway-level boredom.
+	///
+	///   Previous thresholds (0.2 / 0.8 / 1.5 / 2.5) were calibrated for Alpine scores and
+	///   caused the Brussels→Ardennes route (genuinely good riding) to rate 1★ permanently.
 	/// </summary>
 	private static int ComputeFunRating(double score) => score switch
 	{
-		>= 2.5 => 5,
-		>= 1.5 => 4,
-		>= 0.8 => 3,
-		>= 0.2 => 2,
+		>= 1.8 => 5,
+		>= 0.9 => 4,   // was 1.0
+		>= 0.5 => 3,
+		>= 0.15 => 2,
 		_ => 1
 	};
-
 	#endregion
 }
