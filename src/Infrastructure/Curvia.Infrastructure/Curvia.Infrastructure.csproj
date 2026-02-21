@@ -16,8 +16,4 @@
     <ProjectReference Include="..\Curvia.EntityFrameworkCore\Curvia.Persistence.EntityFrameworkCore.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Features\Routing\RoutePlans\" />
-  </ItemGroup>
-
 </Project>
