@@ -1,5 +1,5 @@
-﻿using Curvia.Domain.Features.Routing.RoutePlans.ValueObjects;
-using Templates.Core.Application.Abstractions.Messaging.Commands;
+﻿using Templates.Core.Application.Abstractions.Messaging.Commands;
+using Curvia.Domain.Features.Routing.RoutePlans.ValueObjects;
 using Curvia.Application.Features.Routing.Routes.Commands.GenerateRoute.Responses;
 
 namespace Curvia.Application.Features.Routing.Routes.Commands.GenerateRoute;
@@ -7,122 +7,118 @@ namespace Curvia.Application.Features.Routing.Routes.Commands.GenerateRoute;
 /// <summary>
 /// Author      : Gihed Annabi
 /// Date        : 02-2026
-/// Purpose     : Command to generate the best fun motorcycle route based on the rider's preferences.
-///              Supports point-to-point trips, same-road roundtrips and different-road roundtrips.
-///              The <see cref="Preset"/> field selects a pre-tuned scoring profile for one-tap UX;
-///              set it to <see cref="RoutePreset.Custom"/> to use the individual weight fields instead.
+/// Purpose     : Command to generate the best fun motorcycle route.
+///
+///              Three routing modes (exactly one must be chosen):
+///
+///              1. Point-to-point (EndLatitude + EndLongitude)
+///                 Generates the single best outbound route from Start → End.
+///                 Set RoundTrip = true to also generate a return leg (End → Start)
+///                 on a genuinely different set of roads in the same API call.
+///                 The outbound road corridor is excluded from the return search.
+///
+///                 Example — Avenue Louise 216 ↔ Ardennes:
+///                   startLatitude:  50.8252, startLongitude: 4.3691
+///                   endLatitude:    50.1415, endLongitude:   5.8792
+///                   roundTrip:      true
+///                   → outbound:  Avenue Louise → Ardennes (best fun roads going south-east)
+///                   → returnLeg: Ardennes → Avenue Louise (different fun roads coming back)
+///
+///              2. Loop — SameRoute (LoopTargetDistanceMeters, LoopReturnStrategy = 0)
+///                 Single circular route starting and ending at Start.
+///
+///              3. Loop — DifferentRoute (LoopTargetDistanceMeters, LoopReturnStrategy = 1)
+///                 Two separate circular routes from Start with guaranteed road variety.
 /// </summary>
 public sealed class GenerateRouteCommand : ICommand<GenerateRouteResponse>
 {
 	#region Origin
-	/// <summary>Start point latitude in decimal degrees (WGS84). Required.</summary>
+	/// <summary>Start coordinate latitude (WGS84). Required.</summary>
 	public double StartLatitude { get; init; }
 
-	/// <summary>Start point longitude in decimal degrees (WGS84). Required.</summary>
+	/// <summary>Start coordinate longitude (WGS84). Required.</summary>
 	public double StartLongitude { get; init; }
 	#endregion
 
-	#region Constraints
+	#region Routing constraints
 	/// <summary>
-	/// Optional maximum riding time in minutes.
-	/// Candidates exceeding this duration are disqualified.
-	/// Null = unlimited.
+	/// Maximum allowed route distance as a multiple of the straight-line baseline.
+	/// Default: 2.0.
 	/// </summary>
-	public int? MaxDurationMinutes { get; init; }
+	public double MaxDetourRatio { get; init; } = 2.0;
 
-	/// <summary>Avoid toll roads. Default: false.</summary>
-	public bool AvoidTolls { get; init; } = false;
-
-	/// <summary>
-	/// Optional maximum total distance in meters.
-	/// Null = unlimited.
-	/// </summary>
+	/// <summary>Maximum total distance in meters. Null = no cap.</summary>
 	public double? MaxDistanceMeters { get; init; }
 
-	/// <summary>Avoid motorways and dual carriageways. Default: false.</summary>
-	public bool AvoidHighways { get; init; } = false;
+	/// <summary>Maximum total ride duration in minutes. Null = no cap. Range: [1–1,440].</summary>
+	public int? MaxDurationMinutes { get; init; }
 
-	/// <summary>
-	/// Avoid unpaved roads, gravel tracks and off-road trails. Default: false.
-	/// Set to true for road motorcycles not suitable for off-road surfaces.
-	/// </summary>
-	public bool AvoidUnpaved { get; init; } = false;
+	/// <summary>When true, motorways and dual carriageways are strongly avoided.</summary>
+	public bool AvoidHighways { get; init; }
 
-	/// <summary>
-	/// Maximum allowed route distance as a ratio over the baseline distance.
-	/// Example: 2.0 allows a route up to twice the direct distance.
-	/// Range: [1.0 – 10.0]. Default: 3.0.
-	/// </summary>
-	public double MaxDetourRatio { get; init; } = 3.0;
+	/// <summary>When true, toll roads are strongly avoided.</summary>
+	public bool AvoidTolls { get; init; }
 
-	/// <summary>
-	/// Controls how aggressively urban streets and town centres are avoided.
-	/// Default: <see cref="UrbanTolerance.Allowed"/>.
-	/// </summary>
+	/// <summary>When true, unpaved roads and gravel tracks are avoided.</summary>
+	public bool AvoidUnpaved { get; init; }
+
+	/// <summary>Controls how aggressively urban streets are avoided. Default: Allowed.</summary>
 	public UrbanTolerance UrbanTolerance { get; init; } = UrbanTolerance.Allowed;
 	#endregion
 
 	#region Optional Waypoints
-	/// <summary>
-	/// Ordered intermediate waypoints the route must pass through.
-	/// Maximum 25 waypoints.
-	/// </summary>
+	/// <summary>Ordered intermediate waypoints the route must pass through. Maximum 25.</summary>
 	public IReadOnlyList<WaypointDto>? Waypoints { get; init; }
 	#endregion
 
-	#region Ride Personality — Preset or Custom weights
-	/// <summary>
-	/// Custom only: global fun multiplier [0–10].
-	/// Higher values produce more aggressive detours in favour of enjoyable roads.
-	/// Required when <see cref="Preset"/> is <see cref="RoutePreset.Custom"/>.
-	/// </summary>
+	#region Ride Personality
+	/// <summary>Custom only: global fun multiplier [0–10]. Required when Preset = Custom.</summary>
 	public double? FunFactor { get; init; }
 
-	/// <summary>Custom only: weight assigned to road curvature/twistiness [0–1].</summary>
+	/// <summary>Custom only: weight for curvature/twistiness [0–1].</summary>
 	public double? CurvesWeight { get; init; }
 
-	/// <summary>Custom only: weight assigned to scenic surroundings [0–1].</summary>
+	/// <summary>Custom only: weight for scenic surroundings [0–1].</summary>
 	public double? SceneryWeight { get; init; }
 
-	/// <summary>Custom only: weight assigned to elevation changes and mountain relief [0–1].</summary>
+	/// <summary>Custom only: weight for elevation/mountain relief [0–1].</summary>
 	public double? ElevationWeight { get; init; }
 
-	/// <summary>
-	/// Selects a pre-tuned scoring profile.
-	/// Default: <see cref="RoutePreset.Balanced"/>.
-	/// Set to <see cref="RoutePreset.Custom"/> to use the individual weight properties below.
-	/// </summary>
+	/// <summary>Pre-tuned scoring profile. Default: Balanced.</summary>
 	public RoutePreset Preset { get; init; } = RoutePreset.Balanced;
 	#endregion
 
-	#region Trip Mode — exactly one of the following groups must be set
+	#region Trip Mode
 	/// <summary>
-	/// Point-to-point mode: destination latitude.
-	/// Set together with <see cref="EndLongitude"/>.
-	/// Mutually exclusive with <see cref="LoopTargetDistanceMeters"/>.
+	/// Point-to-point destination latitude.
+	/// Mutually exclusive with LoopTargetDistanceMeters.
 	/// </summary>
 	public double? EndLatitude { get; init; }
 
 	/// <summary>
-	/// Point-to-point mode: destination longitude.
-	/// Set together with <see cref="EndLatitude"/>.
-	/// Mutually exclusive with <see cref="LoopTargetDistanceMeters"/>.
+	/// Point-to-point destination longitude.
+	/// Mutually exclusive with LoopTargetDistanceMeters.
 	/// </summary>
 	public double? EndLongitude { get; init; }
 
 	/// <summary>
-	/// Loop mode: desired total loop distance in meters.
-	/// The route will start and end at the same location.
-	/// Mutually exclusive with <see cref="EndLatitude"/> / <see cref="EndLongitude"/>.
-	/// Range: [1,000 – 500,000] m.
+	/// Point-to-point only: when true, also generates a return leg (End → Start)
+	/// using roads that are different from the outbound journey.
+	/// The outbound corridor is excluded from the return search via Valhalla exclude_polygons.
+	/// The response ReturnLeg field will be populated.
+	/// Ignored in loop mode. Default: false.
+	/// </summary>
+	public bool RoundTrip { get; init; }
+
+	/// <summary>
+	/// Loop mode: desired total loop distance in meters [1,000–500,000].
+	/// Mutually exclusive with EndLatitude/EndLongitude.
 	/// </summary>
 	public double? LoopTargetDistanceMeters { get; init; }
 
 	/// <summary>
-	/// Loop mode only: controls how the return leg is generated.
-	/// <see cref="ReturnStrategy.SameRoute"/> — single circular loop (default).
-	/// <see cref="ReturnStrategy.DifferentRoute"/> — outbound + return on different roads.
-	/// Ignored when in point-to-point mode.
+	/// Loop mode only: SameRoute (0) or DifferentRoute (1).
+	/// Ignored in point-to-point mode.
 	/// </summary>
 	public ReturnStrategy LoopReturnStrategy { get; init; } = ReturnStrategy.SameRoute;
 	#endregion

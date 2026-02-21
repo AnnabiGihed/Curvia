@@ -14,35 +14,34 @@ namespace Curvia.Application.Features.Routing.Routes.Commands.GenerateRoute;
 /// <summary>
 /// Author      : Gihed Annabi
 /// Date        : 02-2026
-/// Purpose     : Orchestrates the full fun motorcycle route generation pipeline.
-///              Steps:
-///              1. Resolve scoring profile (preset or custom weights).
-///              2. Build and validate the RoutePlan domain aggregate.
-///              3. Generate Valhalla route candidates (3 variants per leg).
-///              4. Score each candidate using real curvature, elevation and scenery analysis.
-///              5. Pick the highest-scoring compliant candidate.
-///              6. For DifferentRoute loops: repeat steps 3–5 for the return leg with exclusion zone.
-///              7. Build Route domain aggregate(s) and map to response DTO.
+/// Purpose     : Orchestrates the full route generation pipeline.
+///
+///              Execution flow:
+///                1.  Resolve scoring profile (preset or custom weights)
+///                2.  Build RoutePlan domain aggregate from command
+///                3.  Generate outbound candidates (3 Valhalla variants)
+///                4.  Score candidates concurrently (Task.WhenAll)
+///                5.  Pick the best outbound candidate
+///                6.  Build outbound Route aggregate from Valhalla response
+///                7a. [RoundTrip]      Generate End→Start return candidates (outbound corridor excluded)
+///                7b. [DifferentRoute] Generate Start→Start return candidates (outbound corridor excluded)
+///                8.  Map to response DTO
 /// </summary>
 internal sealed class GenerateRouteCommandHandler : ICommandHandler<GenerateRouteCommand, GenerateRouteResponse>
 {
-	#region Fields
-	/// <summary>Graph version pinned to v1 until the graph worker pipeline is operational.</summary>
-	private const string GraphVersion = "v1";
+	#region Constants
+	/// <summary>Valhalla graph version identifier embedded in every Route aggregate.</summary>
+	private const string GraphVersion = "valhalla-europe-dem-v1";
+	#endregion
 
+	#region Fields
 	private readonly IRouteBuilder _routeBuilder;
 	private readonly IRouteScoringService _scoringService;
 	private readonly IRouteCandidateGeneratorService _candidateGenerator;
 	#endregion
 
 	#region Constructor
-	/// <summary>
-	/// Initialises the handler with all required infrastructure services.
-	/// </summary>
-	/// <param name="candidateGeneratorService">Generates Valhalla route candidates.</param>
-	/// <param name="scoringService">Scores candidates using real geometric analysis.</param>
-	/// <param name="routeBuilder">Builds the Route domain aggregate from a Valhalla response.</param>
-	public GenerateRouteCommandHandler(IRouteCandidateGeneratorService candidateGeneratorService, IRouteScoringService scoringService, IRouteBuilder routeBuilder)
+	public GenerateRouteCommandHandler(IRouteBuilder routeBuilder, IRouteScoringService scoringService, IRouteCandidateGeneratorService candidateGeneratorService)
 	{
 		_routeBuilder = routeBuilder ?? throw new ArgumentNullException(nameof(routeBuilder));
 		_scoringService = scoringService ?? throw new ArgumentNullException(nameof(scoringService));
@@ -84,12 +83,21 @@ internal sealed class GenerateRouteCommandHandler : ICommandHandler<GenerateRout
 		var outboundRoute = outboundRouteResult.Value;
 		#endregion
 
-		#region 7. DifferentRoute loop — generate return leg
+		#region 7. Return leg (RoundTrip or DifferentRoute loop)
 		ReturnLegDto? returnLeg = null;
 
-		if (plan.LoopSpec?.ReturnStrategy == ReturnStrategy.DifferentRoute)
+		// RoundTrip: point-to-point with a return leg on different roads (End → Start)
+		if (command.RoundTrip && plan.End is not null)
 		{
-			var returnResult = await BuildReturnLegAsync(plan, bestOutbound.Raw, cancellationToken);
+			var returnResult = await BuildRoundTripReturnLegAsync(plan, bestOutbound.Raw, cancellationToken);
+			if (returnResult.IsFailure)
+				return Result.Failure<GenerateRouteResponse>(returnResult.Error, returnResult.ResultExceptionType);
+			returnLeg = returnResult.Value;
+		}
+		// DifferentRoute loop: two separate circular routes from Start
+		else if (plan.LoopSpec?.ReturnStrategy == ReturnStrategy.DifferentRoute)
+		{
+			var returnResult = await BuildLoopReturnLegAsync(plan, bestOutbound.Raw, cancellationToken);
 			if (returnResult.IsFailure)
 				return Result.Failure<GenerateRouteResponse>(returnResult.Error, returnResult.ResultExceptionType);
 			returnLeg = returnResult.Value;
@@ -102,70 +110,81 @@ internal sealed class GenerateRouteCommandHandler : ICommandHandler<GenerateRout
 	}
 	#endregion
 
-	#region Private — Response mapping
-	/// <summary>
-	/// Maps the built Route aggregate and metadata to the public response DTO.
-	/// </summary>
-	private static GenerateRouteResponse MapToResponse(Route route, string variantName, double score, ReturnLegDto? returnLeg)
-	{
-		return new GenerateRouteResponse
-		{
-			FunScore = score,
-			ReturnLeg = returnLeg,
-			RouteId = route.Id.Value,
-			VariantName = variantName,
-			FunRating = ComputeFunRating(score),
-			DistanceMeters = route.Stats.Distance.Meters,
-			EstimatedDurationMinutes = (int)Math.Round((route.Stats.EstimatedDuration?.Seconds ?? 0) / 60.0),
-			Polyline = route.Geometry.Points.Select(p => new[] { p.Latitude, p.Longitude }).ToList(),
-			BoundingBox = new BoundingBoxDto(route.BoundingBox.MinLatitude, route.BoundingBox.MinLongitude, route.BoundingBox.MaxLatitude, route.BoundingBox.MaxLongitude)
-		};
-	}
+	#region Private — Return leg builders
 
 	/// <summary>
-	/// Converts a raw fun score to a 1–5 star rating for display in the mobile UI.
-	/// Thresholds are calibrated against the real metric ranges:
-	///   Score &gt;= 2.5 → 5 stars (Alpine-class twisty mountain roads)
-	///   Score &gt;= 1.5 → 4 stars (Excellent rural/mountain riding)
-	///   Score &gt;= 0.8 → 3 stars (Good secondary roads, some curves)
-	///   Score &gt;= 0.2 → 2 stars (Mostly boring, some mild interest)
-	///   Score  &lt; 0.2 → 1 star  (Flat/straight/urban route)
+	/// Generates and scores the return leg for a point-to-point RoundTrip request.
+	/// Direction: End → Start (exact reversal of the outbound).
+	/// The outbound road corridor is excluded so the return uses genuinely different roads.
 	/// </summary>
-	private static int ComputeFunRating(double score)
+	private async Task<Result<ReturnLegDto>> BuildRoundTripReturnLegAsync(
+		RoutePlan plan,
+		ValhallaRouteResponse outboundResponse,
+		CancellationToken cancellationToken)
 	{
-		return score switch
-		{
-			>= 2.5 => 5,
-			>= 1.5 => 4,
-			>= 0.8 => 3,
-			>= 0.2 => 2,
-			_ => 1
-		};
-	}
-	#endregion
-
-	#region Private — Candidate selection
-	/// <summary>
-	/// Generates candidates, scores them concurrently and returns the best one with its score.
-	/// Scoring runs concurrently across all candidates to minimise total latency.
-	/// </summary>
-	private async Task<Result<(RouteCandidate Candidate, double Score)>> PickBestCandidateAsync(RoutePlan plan,	CancellationToken cancellationToken)
-	{
-		IReadOnlyList<RouteCandidate> candidates;
+		IReadOnlyList<RouteCandidate> returnCandidates;
 
 		try
 		{
-			candidates = await _candidateGenerator.GenerateAsync(plan, cancellationToken);
+			returnCandidates = await _candidateGenerator.GenerateRoundTripReturnAsync(plan, outboundResponse, cancellationToken);
 		}
 		catch (Exception ex)
 		{
-			return Result.Failure<(RouteCandidate, double)>(new Error("Routing.Valhalla.GenerationFailed", $"Valhalla route generation failed: {ex.Message}"));
+			return Result.Failure<ReturnLegDto>(new Error(
+				"Routing.Valhalla.RoundTripReturnFailed",
+				$"Round-trip return leg generation failed: {ex.Message}"));
 		}
 
-		if (candidates.Count == 0)
-			return Result.Failure<(RouteCandidate, double)>(new Error("Routing.Candidates.None", "No route candidates were generated."));
+		if (returnCandidates.Count == 0)
+			return Result.Failure<ReturnLegDto>(new Error(
+				"Routing.RoundTripReturn.NoCandidates",
+				"No return leg candidates were generated for the round trip. " +
+				"The outbound route corridor may be covering all available roads between these two points. " +
+				"Try relaxing AvoidHighways or MaxDetourRatio."));
 
-		// Score all candidates concurrently for minimal latency
+		return await ScoreAndBuildReturnLeg(plan, returnCandidates, cancellationToken);
+	}
+
+	/// <summary>
+	/// Generates and scores the return leg for a DifferentRoute loop.
+	/// Direction: Start → (south offset) → Start, with outbound corridor excluded.
+	/// </summary>
+	private async Task<Result<ReturnLegDto>> BuildLoopReturnLegAsync(
+		RoutePlan plan,
+		ValhallaRouteResponse outboundResponse,
+		CancellationToken cancellationToken)
+	{
+		IReadOnlyList<RouteCandidate> returnCandidates;
+
+		try
+		{
+			returnCandidates = await _candidateGenerator.GenerateReturnAsync(plan, outboundResponse, cancellationToken);
+		}
+		catch (Exception ex)
+		{
+			return Result.Failure<ReturnLegDto>(new Error(
+				"Routing.Valhalla.ReturnGenerationFailed",
+				$"Return leg generation failed: {ex.Message}"));
+		}
+
+		if (returnCandidates.Count == 0)
+			return Result.Failure<ReturnLegDto>(new Error(
+				"Routing.ReturnCandidates.None",
+				"No return leg candidates were generated."));
+
+		return await ScoreAndBuildReturnLeg(plan, returnCandidates, cancellationToken);
+	}
+
+	/// <summary>
+	/// Shared scoring + Route aggregate building for any return leg type.
+	/// Scores all candidates concurrently, picks the best, builds the Route aggregate
+	/// and maps it to a ReturnLegDto.
+	/// </summary>
+	private async Task<Result<ReturnLegDto>> ScoreAndBuildReturnLeg(
+		RoutePlan plan,
+		IReadOnlyList<RouteCandidate> candidates,
+		CancellationToken cancellationToken)
+	{
 		var scoreTasks = candidates
 			.Select(c => _scoringService.ScoreAsync(c, plan, cancellationToken))
 			.ToList();
@@ -185,7 +204,82 @@ internal sealed class GenerateRouteCommandHandler : ICommandHandler<GenerateRout
 		}
 
 		if (best is null || bestScore <= -999_999)
-			return Result.Failure<(RouteCandidate, double)>(new Error("Routing.Candidates.AllDisqualified", "All route candidates were disqualified by the active constraints " + "(detour ratio, distance or duration limits). Try relaxing your constraints."));
+			return Result.Failure<ReturnLegDto>(new Error(
+				"Routing.ReturnCandidates.AllDisqualified",
+				"All return leg candidates were disqualified. Try relaxing your constraints."));
+
+		var returnRouteResult = _routeBuilder.Build(plan, best.Raw, GraphVersion);
+		if (returnRouteResult.IsFailure)
+			return Result.Failure<ReturnLegDto>(returnRouteResult.Error, returnRouteResult.ResultExceptionType);
+
+		var r = returnRouteResult.Value;
+
+		return Result.Success(new ReturnLegDto
+		{
+			RouteId = r.Id.Value,
+			FunScore = bestScore,
+			FunRating = ComputeFunRating(bestScore),
+			DistanceMeters = r.Stats.Distance.Meters,
+			EstimatedDurationMinutes = (int)Math.Round((r.Stats.EstimatedDuration?.Seconds ?? 0) / 60.0),
+			Polyline = r.Geometry.Points.Select(p => new[] { p.Latitude, p.Longitude }).ToList(),
+			BoundingBox = new BoundingBoxDto(
+				r.BoundingBox.MinLatitude, r.BoundingBox.MinLongitude,
+				r.BoundingBox.MaxLatitude, r.BoundingBox.MaxLongitude)
+		});
+	}
+
+	#endregion
+
+	#region Private — Candidate selection
+
+	/// <summary>
+	/// Generates outbound candidates, scores them concurrently and returns the best one.
+	/// </summary>
+	private async Task<Result<(RouteCandidate Candidate, double Score)>> PickBestCandidateAsync(
+		RoutePlan plan,
+		CancellationToken cancellationToken)
+	{
+		IReadOnlyList<RouteCandidate> candidates;
+
+		try
+		{
+			candidates = await _candidateGenerator.GenerateAsync(plan, cancellationToken);
+		}
+		catch (Exception ex)
+		{
+			return Result.Failure<(RouteCandidate, double)>(new Error(
+				"Routing.Valhalla.GenerationFailed",
+				$"Valhalla route generation failed: {ex.Message}"));
+		}
+
+		if (candidates.Count == 0)
+			return Result.Failure<(RouteCandidate, double)>(new Error(
+				"Routing.Candidates.None",
+				"No route candidates were generated."));
+
+		var scoreTasks = candidates
+			.Select(c => _scoringService.ScoreAsync(c, plan, cancellationToken))
+			.ToList();
+
+		var scores = await Task.WhenAll(scoreTasks);
+
+		RouteCandidate? best = null;
+		double bestScore = double.NegativeInfinity;
+
+		for (var i = 0; i < candidates.Count; i++)
+		{
+			if (scores[i] > bestScore)
+			{
+				bestScore = scores[i];
+				best = candidates[i];
+			}
+		}
+
+		if (best is null || bestScore <= -999_999)
+			return Result.Failure<(RouteCandidate, double)>(new Error(
+				"Routing.Candidates.AllDisqualified",
+				"All route candidates were disqualified by the active constraints " +
+				"(detour ratio, distance or duration limits). Try relaxing your constraints."));
 
 		return Result.Success((best, bestScore));
 	}
@@ -193,15 +287,16 @@ internal sealed class GenerateRouteCommandHandler : ICommandHandler<GenerateRout
 	#endregion
 
 	#region Private — RoutePlan construction
-	/// <summary>
-	/// Resolves the scoring profile from the command preset or custom weights.
-	/// </summary>
+
 	private static Result<ScoringProfile> BuildScoringProfile(GenerateRouteCommand cmd)
 	{
 		if (cmd.Preset != RoutePreset.Custom)
 			return ScoringProfile.FromPreset(cmd.Preset);
 
-		var weightsResult = ScoringWeights.Create(curves: cmd.CurvesWeight ?? 0, elevation: cmd.ElevationWeight ?? 0, scenery: cmd.SceneryWeight ?? 0);
+		var weightsResult = ScoringWeights.Create(
+			curves: cmd.CurvesWeight ?? 0,
+			elevation: cmd.ElevationWeight ?? 0,
+			scenery: cmd.SceneryWeight ?? 0);
 
 		if (weightsResult.IsFailure)
 			return Result.Failure<ScoringProfile>(weightsResult.Error, weightsResult.ResultExceptionType);
@@ -209,17 +304,12 @@ internal sealed class GenerateRouteCommandHandler : ICommandHandler<GenerateRout
 		return ScoringProfile.FromPreset(RoutePreset.Custom, cmd.FunFactor, weightsResult.Value);
 	}
 
-	/// <summary>
-	/// Builds the RoutePlan domain aggregate from the command fields.
-	/// </summary>
 	private static Result<RoutePlan> BuildRoutePlan(GenerateRouteCommand cmd, ScoringProfile profile)
 	{
-		// Start coordinate
 		var startResult = GeoCoordinate.Create(cmd.StartLatitude, cmd.StartLongitude);
 		if (startResult.IsFailure)
 			return Result.Failure<RoutePlan>(startResult.Error, startResult.ResultExceptionType);
 
-		// End coordinate (point-to-point) or LoopSpec
 		GeoCoordinate? end = null;
 		LoopSpec? loopSpec = null;
 
@@ -228,7 +318,6 @@ internal sealed class GenerateRouteCommandHandler : ICommandHandler<GenerateRout
 			var endResult = GeoCoordinate.Create(cmd.EndLatitude.Value, cmd.EndLongitude.Value);
 			if (endResult.IsFailure)
 				return Result.Failure<RoutePlan>(endResult.Error, endResult.ResultExceptionType);
-
 			end = endResult.Value;
 		}
 		else
@@ -244,26 +333,30 @@ internal sealed class GenerateRouteCommandHandler : ICommandHandler<GenerateRout
 			loopSpec = loopResult.Value;
 		}
 
-		// MaxDistance constraint
 		Distance? maxDist = null;
 		if (cmd.MaxDistanceMeters.HasValue)
 		{
 			var dr = Distance.Create(cmd.MaxDistanceMeters.Value);
-			if (dr.IsFailure)
-				return Result.Failure<RoutePlan>(dr.Error, dr.ResultExceptionType);
-
+			if (dr.IsFailure) return Result.Failure<RoutePlan>(dr.Error, dr.ResultExceptionType);
 			maxDist = dr.Value;
 		}
 
-		// MaxDuration constraint (minutes → seconds)
-		long? maxDurationSec = cmd.MaxDurationMinutes.HasValue ? (long)(cmd.MaxDurationMinutes.Value * 60) : null;
+		long? maxDurationSec = cmd.MaxDurationMinutes.HasValue
+			? (long)(cmd.MaxDurationMinutes.Value * 60)
+			: null;
 
-		var constraintsResult = RoutingConstraints.Create(maxDetourRatio: cmd.MaxDetourRatio, avoidHighways: cmd.AvoidHighways, avoidTolls: cmd.AvoidTolls, avoidUnpaved: cmd.AvoidUnpaved, urbanTolerance: cmd.UrbanTolerance, maxDistance: maxDist, maxDurationSeconds: maxDurationSec);
+		var constraintsResult = RoutingConstraints.Create(
+			maxDetourRatio: cmd.MaxDetourRatio,
+			avoidHighways: cmd.AvoidHighways,
+			avoidTolls: cmd.AvoidTolls,
+			avoidUnpaved: cmd.AvoidUnpaved,
+			urbanTolerance: cmd.UrbanTolerance,
+			maxDistance: maxDist,
+			maxDurationSeconds: maxDurationSec);
 
 		if (constraintsResult.IsFailure)
 			return Result.Failure<RoutePlan>(constraintsResult.Error, constraintsResult.ResultExceptionType);
 
-		// Waypoints
 		List<Waypoint>? waypoints = null;
 		if (cmd.Waypoints is { Count: > 0 })
 		{
@@ -284,67 +377,45 @@ internal sealed class GenerateRouteCommandHandler : ICommandHandler<GenerateRout
 
 		return RoutePlan.Create(startResult.Value, end, loopSpec, waypoints, constraintsResult.Value, profile);
 	}
+
 	#endregion
 
-	#region Private — DifferentRoute return leg
-	/// <summary>
-	/// Generates and scores the return leg for a DifferentRoute loop,
-	/// then builds the return Route aggregate and maps it to a ReturnLegDto.
-	/// </summary>
-	private async Task<Result<ReturnLegDto>> BuildReturnLegAsync(RoutePlan plan, ValhallaRouteResponse outboundResponse, CancellationToken cancellationToken)
+	#region Private — Response mapping
+
+	private static GenerateRouteResponse MapToResponse(Route route, string variantName, double score, ReturnLegDto? returnLeg)
 	{
-		IReadOnlyList<RouteCandidate> returnCandidates;
-
-		try
+		return new GenerateRouteResponse
 		{
-			returnCandidates = await _candidateGenerator.GenerateReturnAsync(plan, outboundResponse, cancellationToken);
-		}
-		catch (Exception ex)
-		{
-			return Result.Failure<ReturnLegDto>(new Error("Routing.Valhalla.ReturnGenerationFailed", $"Return leg generation failed: {ex.Message}"));
-		}
-
-		if (returnCandidates.Count == 0)
-			return Result.Failure<ReturnLegDto>(new Error("Routing.ReturnCandidates.None", "No return leg candidates were generated."));
-
-		// Score concurrently
-		var scoreTasks = returnCandidates
-			.Select(c => _scoringService.ScoreAsync(c, plan, cancellationToken))
-			.ToList();
-
-		var scores = await Task.WhenAll(scoreTasks);
-
-		RouteCandidate? bestReturn = null;
-		double bestReturnScore = double.NegativeInfinity;
-
-		for (var i = 0; i < returnCandidates.Count; i++)
-		{
-			if (scores[i] > bestReturnScore)
-			{
-				bestReturnScore = scores[i];
-				bestReturn = returnCandidates[i];
-			}
-		}
-
-		if (bestReturn is null || bestReturnScore <= -999_999)
-			return Result.Failure<ReturnLegDto>(new Error("Routing.ReturnCandidates.AllDisqualified", "All return leg candidates were disqualified. Try relaxing your constraints."));
-
-		var returnRouteResult = _routeBuilder.Build(plan, bestReturn.Raw, GraphVersion);
-		if (returnRouteResult.IsFailure)
-			return Result.Failure<ReturnLegDto>(returnRouteResult.Error, returnRouteResult.ResultExceptionType);
-
-		var r = returnRouteResult.Value;
-
-		return Result.Success(new ReturnLegDto
-		{
-			RouteId = r.Id.Value,
-			FunScore = bestReturnScore,
-			DistanceMeters = r.Stats.Distance.Meters,
-			FunRating = ComputeFunRating(bestReturnScore),
-			EstimatedDurationMinutes = (int)Math.Round((r.Stats.EstimatedDuration?.Seconds ?? 0) / 60.0),
-			Polyline = r.Geometry.Points.Select(p => new[] { p.Latitude, p.Longitude }).ToList(),
-			BoundingBox = new BoundingBoxDto(r.BoundingBox.MinLatitude, r.BoundingBox.MinLongitude, r.BoundingBox.MaxLatitude, r.BoundingBox.MaxLongitude)
-		});
+			FunScore = score,
+			ReturnLeg = returnLeg,
+			RouteId = route.Id.Value,
+			VariantName = variantName,
+			FunRating = ComputeFunRating(score),
+			DistanceMeters = route.Stats.Distance.Meters,
+			EstimatedDurationMinutes = (int)Math.Round((route.Stats.EstimatedDuration?.Seconds ?? 0) / 60.0),
+			Polyline = route.Geometry.Points.Select(p => new[] { p.Latitude, p.Longitude }).ToList(),
+			BoundingBox = new BoundingBoxDto(
+				route.BoundingBox.MinLatitude, route.BoundingBox.MinLongitude,
+				route.BoundingBox.MaxLatitude, route.BoundingBox.MaxLongitude)
+		};
 	}
+
+	/// <summary>
+	/// Converts a raw fun score to a 1–5 star rating.
+	///   ≥ 2.5 → 5 stars (Alpine-class twisty mountain roads)
+	///   ≥ 1.5 → 4 stars (Excellent rural/mountain riding)
+	///   ≥ 0.8 → 3 stars (Good secondary roads, some curves)
+	///   ≥ 0.2 → 2 stars (Mostly boring, some mild interest)
+	///   &lt; 0.2 → 1 star  (Flat/straight/urban route)
+	/// </summary>
+	private static int ComputeFunRating(double score) => score switch
+	{
+		>= 2.5 => 5,
+		>= 1.5 => 4,
+		>= 0.8 => 3,
+		>= 0.2 => 2,
+		_ => 1
+	};
+
 	#endregion
 }

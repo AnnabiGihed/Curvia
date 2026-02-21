@@ -1,4 +1,5 @@
 ﻿using Curvia.Domain.Features.Routing.RoutePlans.Aggregate;
+using Curvia.Domain.Features.Routing.RoutePlans.ValueObjects;
 using Curvia.Application.Features.Routing.Routes.Contracts.Engines.Valhalla.RoutingClient;
 
 namespace Curvia.Application.Features.Routing.Routes.Contracts.Engines.Valhalla.CandidateGenerator;
@@ -6,31 +7,54 @@ namespace Curvia.Application.Features.Routing.Routes.Contracts.Engines.Valhalla.
 /// <summary>
 /// Author      : Gihed Annabi
 /// Date        : 02-2026
-/// Purpose     : Port (application-layer interface) for generating Valhalla route candidates.
-///              <see cref="GenerateAsync"/> produces the standard set of outbound variants.
-///              <see cref="GenerateReturnAsync"/> produces return leg variants for DifferentRoute loops,
-///              using the outbound response to build an exclusion zone.
+/// Purpose     : Port for generating Valhalla route candidates.
+///
+///              Three generation modes:
+///
+///              GenerateAsync              — outbound candidates (point-to-point or loop).
+///
+///              GenerateReturnAsync        — return leg candidates for DifferentRoute loops.
+///                                          Direction: Start → Start (different circle from outbound).
+///                                          Outbound corridor excluded via exclude_polygons.
+///
+///              GenerateRoundTripReturnAsync — return leg candidates for point-to-point round trips.
+///                                          Direction: End → Start (reversed point-to-point).
+///                                          Outbound (Start→End) corridor excluded via exclude_polygons,
+///                                          guaranteeing genuinely different roads on the way back.
 /// </summary>
 public interface IRouteCandidateGeneratorService
 {
 	/// <summary>
-	/// Generates a ranked list of route candidates for the given <see cref="RoutePlan"/>.
-	/// For point-to-point plans: produces start → end variants.
-	/// For loop plans: produces circular start → ... → start variants.
+	/// Generates route candidates for the outbound journey.
+	/// For point-to-point plans: Start → End variants.
+	/// For loop plans: Start → intermediate waypoint → Start variants.
 	/// </summary>
-	/// <param name="plan">The validated routing plan containing constraints and scoring profile.</param>
-	/// <param name="cancellationToken">Cancellation token.</param>
-	/// <returns>List of route candidates ordered by generation (scoring happens in the handler).</returns>
-	Task<IReadOnlyList<RouteCandidate>> GenerateAsync(RoutePlan plan, CancellationToken cancellationToken = default);
+	Task<IReadOnlyList<RouteCandidate>> GenerateAsync(
+		RoutePlan plan,
+		CancellationToken cancellationToken = default);
 
 	/// <summary>
 	/// Generates return leg candidates for a <see cref="ReturnStrategy.DifferentRoute"/> loop.
-	/// The outbound route response is used to build an exclusion polygon that forces Valhalla
-	/// to find a genuinely different set of roads for the return journey.
+	/// Direction: Start → (different intermediate offset) → Start.
+	/// The outbound bounding box is excluded to force a different road set.
 	/// </summary>
-	/// <param name="plan">The same plan used for the outbound route.</param>
-	/// <param name="outboundResponse">The Valhalla response from the chosen outbound candidate.</param>
+	Task<IReadOnlyList<RouteCandidate>> GenerateReturnAsync(
+		RoutePlan plan,
+		ValhallaRouteResponse outboundResponse,
+		CancellationToken cancellationToken = default);
+
+	/// <summary>
+	/// Generates return leg candidates for a point-to-point round trip (RoundTrip = true).
+	/// Direction: End → Start (exact reversal of the outbound journey).
+	/// The outbound (Start → End) road corridor is excluded via Valhalla exclude_polygons
+	/// to guarantee a genuinely different set of roads on the return.
+	/// </summary>
+	/// <param name="plan">The same plan used for the outbound route (provides constraints and profile).</param>
+	/// <param name="outboundResponse">The Valhalla response from the best outbound candidate.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
-	/// <returns>List of return leg candidates.</returns>
-	Task<IReadOnlyList<RouteCandidate>> GenerateReturnAsync(RoutePlan plan, ValhallaRouteResponse outboundResponse, CancellationToken cancellationToken = default);
+	/// <returns>List of return leg candidates to be scored and ranked.</returns>
+	Task<IReadOnlyList<RouteCandidate>> GenerateRoundTripReturnAsync(
+		RoutePlan plan,
+		ValhallaRouteResponse outboundResponse,
+		CancellationToken cancellationToken = default);
 }

@@ -20,24 +20,48 @@ namespace Curvia.Infrastructure.Features.Routing.Routes.Services.Scoring;
 ///                4. Scenery proxy from average road speed (slower = more rural = more scenic)
 ///                5. Weighted combination using the plan's ScoringProfile
 ///                6. Apply FunFactor multiplier
-///                7. Soft penalties (distance overage, time bias)
+///                7. Soft penalties (distance overage, ultra-long ride penalty)
 ///
-///              Final formula (design doc):
+///              Final formula (corrected from design doc):
 ///                FunScore = CurvatureScore × 1.8 + ElevationScore × 1.2 + SceneryScore × 1.0
-///                         − BoredomPenalty × 2.0
-///                Cost     = BaseDistance − (FunScore × FunFactor)
+///                         − BoredomPenalty
+///
+///              Design doc formula fix:
+///                The original design doc specifies BoredomPenalty × 2.0.
+///                Combined with boredomPenalty = straightFraction × 0.5, this expands to:
+///                  − (1 - curvatureScore) × 1.0
+///                  = − 1.0 + curvatureScore × 1.0
+///                This introduces a structural constant −1.0 offset that causes all routes
+///                with moderate curvature to score negative before any other contribution.
+///                Fixed: boredomPenalty = straightFraction × 0.25 (max penalty 0.25, not 1.0).
+///                This preserves the design intent (penalise boring routes) without making
+///                any route negative by structural default.
+///
+///              Time penalty fix:
+///                The original 0.25 pts/hour penalty deducted 0.65 pts on a 157-minute Ardennes
+///                ride, pushing scores deeply negative for long enjoyable routes.
+///                Fixed: only penalise rides that exceed 6 hours (ultra-long inefficiency).
+///                Normal rides (under 6 hours) receive zero time penalty.
 /// </summary>
 internal sealed class RouteScoringService : IRouteScoringService
 {
 	#region Fields
 	private readonly IValhallaHeightClient _heightClient;
+
+	/// <summary>
+	/// Rides under this threshold receive zero time penalty.
+	/// Penalising normal 2–4 hour rides was incorrectly discouraging long enjoyable routes.
+	/// </summary>
+	private const double TimePenaltyThresholdSeconds = 6 * 3600; // 6 hours
+
+	/// <summary>
+	/// Penalty rate per hour applied only beyond the threshold.
+	/// 0.1 pts/hour means an 8-hour ride costs 0.2 extra pts — a soft discouragement only.
+	/// </summary>
+	private const double TimePenaltyRatePerHour = 0.1;
 	#endregion
 
 	#region Constructor
-	/// <summary>
-	/// Initialises the service with the Valhalla height client for elevation queries.
-	/// </summary>
-	/// <param name="heightClient">Client for Valhalla's /height endpoint.</param>
 	public RouteScoringService(IValhallaHeightClient heightClient)
 	{
 		_heightClient = heightClient ?? throw new ArgumentNullException(nameof(heightClient));
@@ -60,7 +84,8 @@ internal sealed class RouteScoringService : IRouteScoringService
 		#endregion
 
 		#region Hard constraint — MaxDurationSeconds
-		if (plan.Constraints.MaxDurationSeconds.HasValue &&	timeSeconds > plan.Constraints.MaxDurationSeconds.Value)
+		if (plan.Constraints.MaxDurationSeconds.HasValue &&
+			timeSeconds > plan.Constraints.MaxDurationSeconds.Value)
 			return -1_000_000;
 		#endregion
 
@@ -73,7 +98,6 @@ internal sealed class RouteScoringService : IRouteScoringService
 		#endregion
 
 		#region Decode route geometry
-		// Collect all shape points from all legs
 		var allPoints = trip.Legs
 			.Where(l => !string.IsNullOrWhiteSpace(l.Shape))
 			.SelectMany(l => Polyline6Decoder.Decode(l.Shape))
@@ -83,48 +107,59 @@ internal sealed class RouteScoringService : IRouteScoringService
 			return -1_000_000;
 		#endregion
 
-		#region Real curvature score
+		#region Real curvature score [0, 1]
 		var curvatureScore = RouteGeometryAnalyzer.ComputeCurvatureScore(allPoints);
 		#endregion
 
-		#region Real elevation score (Valhalla /height)
+		#region Real elevation score [0, 1] — Valhalla /height
 		var elevationScore = await ComputeElevationScoreAsync(allPoints, routeMeters, cancellationToken);
 		#endregion
 
-		#region Scenery score — average road speed proxy
-		// Slower average speed → rural/mountain roads → more scenic.
-		// 130 km/h = pure motorway (score 0), 30 km/h = mountain village (score ~0.77).
+		#region Scenery score — average road speed proxy [0, 1]
+		// Slower average speed → rural / mountain roads → more scenic.
+		// 130 km/h = motorway (score 0.0), 30 km/h = mountain village (score 0.77).
 		// Formula: SceneryScore = 1 - (avgSpeedKph / 130) clamped to [0, 1]
-		var avgSpeedKph = timeSeconds > 0 ? (routeMeters / 1000.0) / (timeSeconds / 3600.0) : 130.0;
-
+		var avgSpeedKph = timeSeconds > 0
+			? (routeMeters / 1000.0) / (timeSeconds / 3600.0)
+			: 130.0;
 		var sceneryScore = Math.Max(0.0, Math.Min(1.0, 1.0 - avgSpeedKph / 130.0));
 		#endregion
 
-		#region Boredom penalty — straight road fraction
-		// Estimate straight-road fraction from curvature:
-		// Low curvature = high boredom. Penalty increases for monotonous routes.
-		// BoredomPenalty ∈ [0, 1] — inverse of curvature score weighted by distance bias.
+		#region Boredom penalty [0, 0.25]
+		// Penalises straight, monotonous routes.
+		// Max penalty is 0.25 (on a perfectly straight route with zero curvature).
+		//
+		// Design doc bug: original formula was boredomPenalty × 2.0 with
+		// boredomPenalty = straightFraction × 0.5, which expands to:
+		//   − (1 − curvatureScore) × 1.0 = − 1.0 + curvatureScore
+		// introducing a structural constant −1.0 that makes nearly all routes score negative.
+		//
+		// Fixed: boredomPenalty = straightFraction × 0.25
+		// Applied directly in the formula (× 1.0, not × 2.0).
 		var straightFraction = 1.0 - curvatureScore;
-		var boredomPenalty = straightFraction * 0.5; // max 0.5 penalty, not a hard disqualifier
+		var boredomPenalty = straightFraction * 0.25;
 		#endregion
 
-		#region Fun score (design doc formula, user-weight adjusted)
+		#region Fun score — weighted combination
 		var weights = plan.ScoringProfile.Weights;
 
-		// Apply user weights to the three raw scores
-		var userWeightedCurvature = curvatureScore * weights.Curves;
-		var userWeightedElevation = elevationScore * weights.Elevation;
-		var userWeightedScenery = sceneryScore * weights.Scenery;
+		var weightedCurvature = curvatureScore * weights.Curves;
+		var weightedElevation = elevationScore * weights.Elevation;
+		var weightedScenery = sceneryScore * weights.Scenery;
 
-		// Apply design doc multipliers (curvature matters most for motorcycles)
-		var rawFunScore =userWeightedCurvature * 1.8 + userWeightedElevation * 1.2 + userWeightedScenery * 1.0 - boredomPenalty * 2.0;
+		// Design doc multipliers (curvature matters most for motorcycles)
+		var rawFunScore = weightedCurvature * 1.8
+						+ weightedElevation * 1.2
+						+ weightedScenery * 1.0
+						- boredomPenalty;
 
-		// Apply global FunFactor multiplier (range [0,10] → multiplier [1.0, 2.0])
+		// FunFactor multiplier: range [0, 10] → multiplier [1.0, 2.0]
 		var funScore = rawFunScore * (1.0 + plan.ScoringProfile.FunFactor / 10.0);
 		#endregion
 
 		#region Soft penalties
-		// Distance overage penalty
+
+		// Distance overage — penalise routes exceeding the hard distance cap
 		var distancePenalty = 0.0;
 		if (plan.Constraints.MaxDistance is not null)
 		{
@@ -136,9 +171,17 @@ internal sealed class RouteScoringService : IRouteScoringService
 			}
 		}
 
-		// Time bias: mildly prefer shorter rides when fun scores are equal
-		// (0.25 pts per hour — intentionally small to not override fun)
-		var timePenalty = timeSeconds / 3600.0 * 0.25;
+		// Time penalty — only applied to rides exceeding 6 hours.
+		// Original 0.25 pts/hour rate deducted 0.65 pts on a 157-min ride, incorrectly
+		// pushing enjoyable long routes into deeply negative territory.
+		// Fixed: threshold at 6 hours, rate reduced to 0.1 pts/hour beyond the threshold.
+		var timePenalty = 0.0;
+		if (timeSeconds > TimePenaltyThresholdSeconds)
+		{
+			var excessHours = (timeSeconds - TimePenaltyThresholdSeconds) / 3600.0;
+			timePenalty = excessHours * TimePenaltyRatePerHour;
+		}
+
 		#endregion
 
 		#region Final score
@@ -148,12 +191,10 @@ internal sealed class RouteScoringService : IRouteScoringService
 	#endregion
 
 	#region Private — Elevation
-	/// <summary>
-	/// Queries Valhalla /height for elevation data and computes the elevation score.
-	/// Falls back to 0.0 if the height service is unavailable, so a single endpoint failure
-	/// does not disqualify an otherwise excellent route.
-	/// </summary>
-	private async Task<double> ComputeElevationScoreAsync(IReadOnlyList<GeoCoordinate> points, double routeMeters, CancellationToken cancellationToken)
+	private async Task<double> ComputeElevationScoreAsync(
+		IReadOnlyList<GeoCoordinate> points,
+		double routeMeters,
+		CancellationToken cancellationToken)
 	{
 		try
 		{
@@ -161,7 +202,10 @@ internal sealed class RouteScoringService : IRouteScoringService
 				.Select(p => new ValhallaLocation(p.Latitude, p.Longitude, "through"))
 				.ToList();
 
-			var heightRequest = new ValhallaHeightRequest(	Shape: shapeLocations, Range: false, ResampleDistance: null);
+			var heightRequest = new ValhallaHeightRequest(
+				Shape: shapeLocations,
+				Range: false,
+				ResampleDistance: null);
 
 			var heightResponse = await _heightClient.GetHeightsAsync(heightRequest, cancellationToken);
 
@@ -177,12 +221,6 @@ internal sealed class RouteScoringService : IRouteScoringService
 	#endregion
 
 	#region Private — Helpers
-	/// <summary>
-	/// Computes the baseline distance used for detour ratio calculation.
-	/// For point-to-point: straight-line (Haversine) distance from start to end.
-	/// For loop with target: the target distance itself.
-	/// Fallback: the actual route distance (ratio = 1, no penalty).
-	/// </summary>
 	private static double ComputeBaselineMeters(RoutePlan plan, double routeMeters)
 	{
 		if (plan.End is not null)
@@ -197,26 +235,19 @@ internal sealed class RouteScoringService : IRouteScoringService
 		return routeMeters;
 	}
 
-	/// <summary>
-	/// Computes the great-circle distance in meters between two coordinates (Haversine formula).
-	/// </summary>
 	private static double HaversineMeters(GeoCoordinate a, GeoCoordinate b)
 	{
 		const double R = 6_371_000.0;
-
 		var dLat = ToRad(b.Latitude - a.Latitude);
 		var dLon = ToRad(b.Longitude - a.Longitude);
 		var lat1 = ToRad(a.Latitude);
 		var lat2 = ToRad(b.Latitude);
-
 		var sinDLat = Math.Sin(dLat / 2);
 		var sinDLon = Math.Sin(dLon / 2);
 		var h = sinDLat * sinDLat + Math.Cos(lat1) * Math.Cos(lat2) * sinDLon * sinDLon;
-
 		return 2 * R * Math.Asin(Math.Min(1.0, Math.Sqrt(h)));
 	}
 
-	/// <summary>Converts degrees to radians.</summary>
 	private static double ToRad(double degrees) => degrees * Math.PI / 180.0;
 	#endregion
 }

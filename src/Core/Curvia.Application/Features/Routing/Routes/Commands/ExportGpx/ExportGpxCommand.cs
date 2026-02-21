@@ -6,17 +6,20 @@ namespace Curvia.Application.Features.Routing.Routes.Commands.ExportGpx;
 /// Author      : Gihed Annabi
 /// Date        : 02-2026
 /// Purpose     : Command to export a computed route to GPX 1.1 format.
-///              Stateless — operates on the polyline data returned by <see cref="GenerateRouteCommand"/>
+///              Stateless — operates on the polyline data returned by GenerateRoute
 ///              without requiring a database lookup.
-///              Supports single-track routes (point-to-point and SameRoute loops) and
-///              dual-track routes (DifferentRoute loops with outbound + return).
+///
+///              The structure intentionally mirrors GenerateRouteResponse so the route
+///              response body can be forwarded directly to this endpoint without any
+///              client-side field mapping. In particular, ReturnLeg is a nested object
+///              matching ReturnLegDto, not a flat set of returnLeg* properties.
 /// </summary>
 public sealed class ExportGpxCommand : ICommand<ExportGpxResponse>
 {
 	#region Route identity
 
 	/// <summary>
-	/// Human-readable name embedded in GPX metadata.
+	/// Human-readable name embedded in GPX metadata and used as the download filename.
 	/// Defaults to "Curvia Route" when not supplied.
 	/// </summary>
 	public string? RouteName { get; init; }
@@ -27,7 +30,7 @@ public sealed class ExportGpxCommand : ICommand<ExportGpxResponse>
 
 	/// <summary>
 	/// Ordered list of [latitude, longitude] pairs forming the outbound route polyline.
-	/// Matches the <c>Polyline</c> field in <see cref="GenerateRouteResponse"/>.
+	/// Matches the top-level <c>polyline</c> field in GenerateRouteResponse.
 	/// Minimum 2 points required.
 	/// </summary>
 	public IReadOnlyList<double[]> Polyline { get; init; } = Array.Empty<double[]>();
@@ -46,23 +49,14 @@ public sealed class ExportGpxCommand : ICommand<ExportGpxResponse>
 
 	#endregion
 
-	#region Return leg (DifferentRoute loops only — optional)
+	#region Return leg — nested object matching ReturnLegDto (optional)
 
 	/// <summary>
-	/// Ordered list of [latitude, longitude] pairs forming the return leg polyline.
-	/// Matches the <c>ReturnLeg.Polyline</c> field in <see cref="GenerateRouteResponse"/>.
-	/// Null or empty = single-track GPX export (point-to-point / SameRoute loop).
+	/// Return leg data. Matches the <c>returnLeg</c> field in GenerateRouteResponse exactly,
+	/// so the full route response can be forwarded to this endpoint without client-side mapping.
+	/// Null for one-way point-to-point routes and SameRoute loops.
 	/// </summary>
-	public IReadOnlyList<double[]>? ReturnLegPolyline { get; init; }
-
-	/// <summary>Return leg distance in meters. 0 if not present.</summary>
-	public double ReturnLegDistanceMeters { get; init; }
-
-	/// <summary>Return leg estimated duration in minutes. 0 if not present.</summary>
-	public int ReturnLegDurationMinutes { get; init; }
-
-	/// <summary>Fun rating (1–5) of the return leg. 0 if not present.</summary>
-	public int ReturnLegFunRating { get; init; }
+	public ReturnLegExportDto? ReturnLeg { get; init; }
 
 	#endregion
 }

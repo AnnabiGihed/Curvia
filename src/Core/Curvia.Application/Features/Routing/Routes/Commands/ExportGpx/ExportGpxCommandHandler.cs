@@ -13,29 +13,19 @@ namespace Curvia.Application.Features.Routing.Routes.Commands.ExportGpx;
 ///              GPX structure produced:
 ///                &lt;gpx&gt;
 ///                  &lt;metadata&gt; — name, description (distance / duration / fun rating), timestamp
-///                  &lt;trk&gt;    — outbound track, one &lt;trkseg&gt; with one &lt;trkpt&gt; per polyline point
-///                  &lt;trk&gt;    — return leg track (DifferentRoute loops only, omitted otherwise)
+///                  &lt;trk&gt;    — outbound track with one &lt;trkpt&gt; per polyline point
+///                  &lt;trk&gt;    — return leg track (only when ReturnLeg is present and non-empty)
 ///                &lt;/gpx&gt;
-///
-///              Coordinate encoding:
-///                Each &lt;trkpt&gt; carries lat/lon attributes (WGS84 decimal degrees, 6 d.p.).
-///                Elevation is omitted — the route polyline from Valhalla is 2D.
-///                Timestamp is omitted per-point (not available without real-time tracking).
-///
-///              Compatible with: Garmin BaseCamp, TwoNav, Kurviger, OsmAnd, Komoot, Google Maps import.
 /// </summary>
 internal sealed class ExportGpxCommandHandler : ICommandHandler<ExportGpxCommand, ExportGpxResponse>
 {
-	// GPX 1.1 namespace
 	private static readonly XNamespace GpxNs = "http://www.topografix.com/GPX/1/1";
-
-	// Schema instance namespace for xsi:schemaLocation
 	private static readonly XNamespace XsiNs = "http://www.w3.org/2001/XMLSchema-instance";
 
 	/// <inheritdoc/>
 	public Task<Result<ExportGpxResponse>> Handle(ExportGpxCommand command, CancellationToken cancellationToken)
 	{
-		#region Validate polyline
+		#region Validate outbound polyline
 		if (command.Polyline is null || command.Polyline.Count < 2)
 		{
 			return Task.FromResult(Result.Failure<ExportGpxResponse>(
@@ -56,6 +46,7 @@ internal sealed class ExportGpxCommandHandler : ICommandHandler<ExportGpxCommand
 
 		var routeName = string.IsNullOrWhiteSpace(command.RouteName) ? "Curvia Route" : command.RouteName.Trim();
 		var exportedAt = DateTime.UtcNow;
+		var hasReturn = command.ReturnLeg?.Polyline is { Count: >= 2 };
 
 		#region Build GPX document
 		var gpxDoc = new XDocument(
@@ -68,11 +59,27 @@ internal sealed class ExportGpxCommandHandler : ICommandHandler<ExportGpxCommand
 					"http://www.topografix.com/GPX/1/1 " +
 					"http://www.topografix.com/GPX/1/1/gpx.xsd"),
 
-				BuildMetadata(routeName, command, exportedAt),
-				BuildTrack(routeName, command.Polyline, command.DistanceMeters,
-					command.EstimatedDurationMinutes, command.FunRating, command.FunScore,
+				BuildMetadata(routeName, command, hasReturn, exportedAt),
+
+				BuildTrack(
+					name: routeName,
+					polyline: command.Polyline,
+					distanceMeters: command.DistanceMeters,
+					durationMinutes: command.EstimatedDurationMinutes,
+					funRating: command.FunRating,
+					funScore: command.FunScore,
 					isReturnLeg: false),
-				BuildReturnTrack(command)
+
+				hasReturn
+					? BuildTrack(
+						name: routeName,
+						polyline: command.ReturnLeg!.Polyline,
+						distanceMeters: command.ReturnLeg.DistanceMeters,
+						durationMinutes: command.ReturnLeg.EstimatedDurationMinutes,
+						funRating: command.ReturnLeg.FunRating,
+						funScore: command.ReturnLeg.FunScore,
+						isReturnLeg: true)
+					: null
 			)
 		);
 		#endregion
@@ -89,21 +96,16 @@ internal sealed class ExportGpxCommandHandler : ICommandHandler<ExportGpxCommand
 
 	#region Private — GPX element builders
 
-	/// <summary>
-	/// Builds the &lt;metadata&gt; element containing the route name, description and export timestamp.
-	/// The description encodes key statistics so they are visible in any GPX reader.
-	/// </summary>
-	private static XElement BuildMetadata(string routeName, ExportGpxCommand cmd, DateTime exportedAt)
+	private static XElement BuildMetadata(string routeName, ExportGpxCommand cmd, bool hasReturn, DateTime exportedAt)
 	{
-		var distanceKm = cmd.DistanceMeters / 1000.0;
-		var hasReturn = HasReturnLeg(cmd);
+		var distKm = cmd.DistanceMeters / 1000.0;
 
 		var description = hasReturn
 			? $"Curvia fun motorcycle route — " +
-			  $"Outbound: {distanceKm:F1} km / {cmd.EstimatedDurationMinutes} min / {cmd.FunRating}★ | " +
-			  $"Return: {cmd.ReturnLegDistanceMeters / 1000.0:F1} km / {cmd.ReturnLegDurationMinutes} min / {cmd.ReturnLegFunRating}★"
+			  $"Outbound: {distKm:F1} km / {cmd.EstimatedDurationMinutes} min / {cmd.FunRating}★ | " +
+			  $"Return: {cmd.ReturnLeg!.DistanceMeters / 1000.0:F1} km / {cmd.ReturnLeg.EstimatedDurationMinutes} min / {cmd.ReturnLeg.FunRating}★"
 			: $"Curvia fun motorcycle route — " +
-			  $"{distanceKm:F1} km / {cmd.EstimatedDurationMinutes} min / {cmd.FunRating}★ fun rating";
+			  $"{distKm:F1} km / {cmd.EstimatedDurationMinutes} min / {cmd.FunRating}★ fun rating";
 
 		return new XElement(GpxNs + "metadata",
 			new XElement(GpxNs + "name", routeName),
@@ -114,13 +116,8 @@ internal sealed class ExportGpxCommandHandler : ICommandHandler<ExportGpxCommand
 		);
 	}
 
-	/// <summary>
-	/// Builds a &lt;trk&gt; element for a single polyline.
-	/// Each coordinate pair becomes a &lt;trkpt&gt; with lat/lon attributes (6 decimal places).
-	/// A &lt;name&gt; and &lt;desc&gt; element carry human-readable leg metadata.
-	/// </summary>
 	private static XElement BuildTrack(
-		string routeName,
+		string name,
 		IReadOnlyList<double[]> polyline,
 		double distanceMeters,
 		int durationMinutes,
@@ -128,7 +125,7 @@ internal sealed class ExportGpxCommandHandler : ICommandHandler<ExportGpxCommand
 		double funScore,
 		bool isReturnLeg)
 	{
-		var trackName = isReturnLeg ? $"{routeName} — Return" : routeName;
+		var trackName = isReturnLeg ? $"{name} — Return" : name;
 		var desc = $"{distanceMeters / 1000.0:F1} km · {durationMinutes} min · {funRating}★ (score {funScore:F2})";
 
 		var trackSeg = new XElement(GpxNs + "trkseg",
@@ -146,47 +143,15 @@ internal sealed class ExportGpxCommandHandler : ICommandHandler<ExportGpxCommand
 		);
 	}
 
-	/// <summary>
-	/// Builds the optional return leg &lt;trk&gt; element.
-	/// Returns null (no element added) for point-to-point and SameRoute loops.
-	/// </summary>
-	private static XElement? BuildReturnTrack(ExportGpxCommand cmd)
-	{
-		if (!HasReturnLeg(cmd))
-			return null;
-
-		return BuildTrack(
-			cmd.RouteName ?? "Curvia Route",
-			cmd.ReturnLegPolyline!,
-			cmd.ReturnLegDistanceMeters,
-			cmd.ReturnLegDurationMinutes,
-			cmd.ReturnLegFunRating,
-			funScore: 0.0,   // raw score not forwarded for return leg
-			isReturnLeg: true);
-	}
-
-	/// <summary>
-	/// Returns true if the command includes a valid non-empty return leg polyline.
-	/// </summary>
-	private static bool HasReturnLeg(ExportGpxCommand cmd)
-		=> cmd.ReturnLegPolyline is { Count: >= 2 };
-
-	/// <summary>
-	/// Produces a safe, filesystem-friendly filename from the route name and export timestamp.
-	/// Example: "curvia-route-2026-02-21.gpx"
-	/// </summary>
 	private static string BuildFileName(string routeName, DateTime exportedAt)
 	{
-		var safeName = routeName
-			.ToLowerInvariant()
-			.Replace(' ', '-')
-			.Replace('/', '-')
-			.Replace('\\', '-');
-
-		// Strip any remaining characters that are invalid in filenames
-		safeName = new string(safeName
-			.Where(c => char.IsLetterOrDigit(c) || c == '-' || c == '_')
-			.ToArray());
+		var safeName = new string(
+			routeName.ToLowerInvariant()
+				.Replace(' ', '-')
+				.Replace('/', '-')
+				.Replace('\\', '-')
+				.Where(c => char.IsLetterOrDigit(c) || c == '-' || c == '_')
+				.ToArray());
 
 		if (string.IsNullOrEmpty(safeName))
 			safeName = "curvia-route";
