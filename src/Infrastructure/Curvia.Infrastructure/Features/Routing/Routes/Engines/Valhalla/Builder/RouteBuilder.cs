@@ -5,8 +5,8 @@ using Curvia.Domain.Features.Routing.Routes.ValueObjects;
 using Curvia.Domain.Features.Routing.RoutePlans.Aggregate;
 using Curvia.Infrastructure.Features.Routing.Routes.Helpers;
 using Curvia.Domain.Features.Routing.RoutePlans.ValueObjects;
-using Curvia.Application.Features.Routing.Routes.Contracts.Engines.Valhalla.Builder;
-using Curvia.Application.Features.Routing.Routes.Contracts.Engines.Valhalla.RoutingClient;
+using Curvia.Application.Features.Routes.Contracts.Engines.Valhalla.Builder;
+using Curvia.Application.Features.Routes.Contracts.Engines.Valhalla.RoutingClient;
 
 namespace Curvia.Infrastructure.Features.Routing.Routes.Engines.Valhalla.Builder;
 

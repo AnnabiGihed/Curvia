@@ -1,7 +1,5 @@
-﻿using Curvia.Domain.Features.Routing.Routes.Entities;
+﻿using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Templates.Core.Infrastructure.Persistence.EntityFrameworkCore.PersistenceContext;
 
 namespace Curvia.Persistence.EntityFrameworkCore.PersistenceContext;
@@ -22,6 +20,12 @@ public class CurviaDbContext : TemplatesCoreDbContextBase
 	}
 	#endregion
 
+	#region Overrides
+	protected override void OnModelCreating(ModelBuilder modelBuilder)
+	{
+		base.OnModelCreating(modelBuilder);
+		modelBuilder.ApplyConfigurationsFromAssembly(typeof(CurviaDbContext).Assembly);
+	}
 	protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
 	{
 		if (_configureDbContextManuallyFromBuildInConnectionString)
@@ -41,11 +45,5 @@ public class CurviaDbContext : TemplatesCoreDbContextBase
 
 		base.OnConfiguring(optionsBuilder);
 	}
-
-	protected override void OnModelCreating(ModelBuilder modelBuilder)
-	{
-		base.OnModelCreating(modelBuilder);
-		modelBuilder.ApplyConfigurationsFromAssembly(typeof(CurviaDbContext).Assembly);
-
-	}
+	#endregion
 }

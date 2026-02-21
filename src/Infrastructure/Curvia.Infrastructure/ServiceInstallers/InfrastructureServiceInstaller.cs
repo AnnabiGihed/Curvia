@@ -5,15 +5,15 @@ using Templates.Core.Tools.DependencyInjection;
 using Templates.Core.Tools.DependencyInjection.Abstractions;
 using Curvia.Infrastructure.Features.Routing.Routes.Engines.Valhalla;
 using Curvia.Infrastructure.Features.Routing.Routes.Services.Scoring;
-using Curvia.Application.Features.Routing.Routes.Contracts.Services.Scoring;
 using Curvia.Infrastructure.Features.Routing.Routes.Engines.Valhalla.Builder;
 using Curvia.Infrastructure.Features.Routing.Routes.Engines.Valhalla.HeightClient;
 using Curvia.Infrastructure.Features.Routing.Routes.Engines.Valhalla.RoutingClient;
-using Curvia.Application.Features.Routing.Routes.Contracts.Engines.Valhalla.Builder;
 using Curvia.Infrastructure.Features.Routing.Routes.Engines.Valhalla.CandidateGenerator;
-using Curvia.Application.Features.Routing.Routes.Contracts.Engines.Valhalla.HeightClient;
-using Curvia.Application.Features.Routing.Routes.Contracts.Engines.Valhalla.RoutingClient;
-using Curvia.Application.Features.Routing.Routes.Contracts.Engines.Valhalla.CandidateGenerator;
+using Curvia.Application.Features.Routes.Contracts.Services.Scoring;
+using Curvia.Application.Features.Routes.Contracts.Engines.Valhalla.Builder;
+using Curvia.Application.Features.Routes.Contracts.Engines.Valhalla.CandidateGenerator;
+using Curvia.Application.Features.Routes.Contracts.Engines.Valhalla.HeightClient;
+using Curvia.Application.Features.Routes.Contracts.Engines.Valhalla.RoutingClient;
 
 namespace Curvia.Infrastructure.ServiceInstallers;
 

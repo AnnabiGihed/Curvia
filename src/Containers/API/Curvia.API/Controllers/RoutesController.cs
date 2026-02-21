@@ -1,10 +1,10 @@
-﻿using Curvia.Application.Features.Routing.Routes.Commands.ExportGpx;
-using Curvia.Application.Features.Routing.Routes.Commands.GenerateRoute;
-using Curvia.Application.Features.Routing.Routes.Commands.GenerateRoute.Responses;
-using MediatR;
-using Microsoft.AspNetCore.Authorization;
+﻿using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using Templates.Core.Containers.API.Abstractions;
+using Curvia.Application.Features.Routes.Commands.ExportGpx;
+using Curvia.Application.Features.Routes.Commands.Generate;
+using Curvia.Application.Features.Routes.Commands.Generate.Responses;
 
 namespace Curvia.API.Features.Routing.Routes;
 

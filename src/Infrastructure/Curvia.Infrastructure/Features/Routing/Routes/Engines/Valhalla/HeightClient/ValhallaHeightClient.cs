@@ -2,9 +2,9 @@
 using System.Net.Http.Json;
 using Microsoft.Extensions.Options;
 using System.Text.Json.Serialization;
-using Curvia.Application.Features.Routing.Routes.Contracts.Engines.Valhalla.Models;
 using Curvia.Infrastructure.Features.Routing.Routes.Engines.Valhalla.RoutingClient;
-using Curvia.Application.Features.Routing.Routes.Contracts.Engines.Valhalla.HeightClient;
+using Curvia.Application.Features.Routes.Contracts.Engines.Valhalla.HeightClient;
+using Curvia.Application.Features.Routes.Contracts.Engines.Valhalla.Models;
 
 
 namespace Curvia.Infrastructure.Features.Routing.Routes.Engines.Valhalla.HeightClient;
