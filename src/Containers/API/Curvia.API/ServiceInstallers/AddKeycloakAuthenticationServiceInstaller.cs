@@ -12,20 +12,24 @@ namespace Curvia.API.ServiceInstallers;
 /// </summary>
 public static class AddKeycloakAuthenticationServiceInstaller
 {
+	#region Public Methods
+	/// <summary>
+	/// Registers Keycloak authentication support, including:
+	/// - Redis caching used for token-related operations
+	/// - JwtBearer role claim type configuration (<see cref="ClaimTypes.Role"/>)
+	/// - Swagger/OpenAPI configuration with Keycloak security definition and requirement
+	/// </summary>
+	/// <param name="services">The DI service collection.</param>
+	/// <param name="configuration">Application configuration.</param>
 	public static void AddKeycloakAuthentication(this IServiceCollection services, IConfiguration configuration)
 	{
-		// 1. Full Keycloak + Redis stack.
-		//    Internally calls AddAuthentication(Bearer) and AddAuthorization() — do NOT call again.
 		services.AddKeycloakRedisCache(configuration);
 
-		// 2. Fix the RoleClaimType mismatch introduced by AddKeycloakRedisCache.
-		//    PostConfigure runs after all Configure calls, so this wins regardless of order.
 		services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
 		{
 			options.TokenValidationParameters.RoleClaimType = ClaimTypes.Role;
 		});
 
-		// 3. Swagger with Keycloak OAuth2 PKCE.
 		services.AddEndpointsApiExplorer();
 		services.AddSwaggerGen(c =>
 		{
@@ -34,4 +38,5 @@ public static class AddKeycloakAuthenticationServiceInstaller
 			c.AddKeycloakSecurityRequirement();
 		});
 	}
+	#endregion
 }

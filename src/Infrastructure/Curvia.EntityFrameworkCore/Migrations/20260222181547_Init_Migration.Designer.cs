@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Curvia.Persistence.EntityFrameworkCore.Migrations
 {
     [DbContext(typeof(CurviaDbContext))]
-    [Migration("20260222165624_Migration_Init")]
-    partial class Migration_Init
+    [Migration("20260222181547_Init_Migration")]
+    partial class Init_Migration
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -365,22 +365,16 @@ namespace Curvia.Persistence.EntityFrameworkCore.Migrations
                                 .HasColumnType("uniqueidentifier");
 
                             b1.Property<string>("CreatedBy")
-                                .HasMaxLength(256)
-                                .HasColumnType("nvarchar(256)")
-                                .HasColumnName("CreatedBy");
+                                .HasColumnType("nvarchar(max)");
 
                             b1.Property<DateTime>("CreatedOnUtc")
-                                .HasColumnType("datetime2")
-                                .HasColumnName("CreatedOnUtc");
+                                .HasColumnType("datetime2");
 
                             b1.Property<string>("ModifiedBy")
-                                .HasMaxLength(256)
-                                .HasColumnType("nvarchar(256)")
-                                .HasColumnName("ModifiedBy");
+                                .HasColumnType("nvarchar(max)");
 
                             b1.Property<DateTime?>("ModifiedOnUtc")
-                                .HasColumnType("datetime2")
-                                .HasColumnName("ModifiedOnUtc");
+                                .HasColumnType("datetime2");
 
                             b1.HasKey("MotorcycleCatalogModelId");
 
@@ -402,22 +396,16 @@ namespace Curvia.Persistence.EntityFrameworkCore.Migrations
                                 .HasColumnType("uniqueidentifier");
 
                             b1.Property<string>("CreatedBy")
-                                .HasMaxLength(256)
-                                .HasColumnType("nvarchar(256)")
-                                .HasColumnName("CreatedBy");
+                                .HasColumnType("nvarchar(max)");
 
                             b1.Property<DateTime>("CreatedOnUtc")
-                                .HasColumnType("datetime2")
-                                .HasColumnName("CreatedOnUtc");
+                                .HasColumnType("datetime2");
 
                             b1.Property<string>("ModifiedBy")
-                                .HasMaxLength(256)
-                                .HasColumnType("nvarchar(256)")
-                                .HasColumnName("ModifiedBy");
+                                .HasColumnType("nvarchar(max)");
 
                             b1.Property<DateTime?>("ModifiedOnUtc")
-                                .HasColumnType("datetime2")
-                                .HasColumnName("ModifiedOnUtc");
+                                .HasColumnType("datetime2");
 
                             b1.HasKey("MotorcycleMakerId");
 
@@ -1117,8 +1105,7 @@ namespace Curvia.Persistence.EntityFrameworkCore.Migrations
                                 .HasColumnName("Rating");
 
                             b1.Property<DateTime>("ReviewedAtUtc")
-                                .HasColumnType("datetime2")
-                                .HasColumnName("ReviewedAtUtc");
+                                .HasColumnType("datetime2");
 
                             b1.Property<Guid>("ReviewerUserId")
                                 .HasColumnType("uniqueidentifier")

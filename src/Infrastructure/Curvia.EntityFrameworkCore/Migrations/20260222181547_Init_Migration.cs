@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Curvia.Persistence.EntityFrameworkCore.Migrations
 {
     /// <inheritdoc />
-    public partial class Migration_Init : Migration
+    public partial class Init_Migration : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -41,10 +41,10 @@ namespace Curvia.Persistence.EntityFrameworkCore.Migrations
                     Name = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     Status = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: false),
                     SuggestedByUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    CreatedOnUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    CreatedBy = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
-                    ModifiedBy = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
-                    ModifiedOnUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    Audit_CreatedOnUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    Audit_CreatedBy = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Audit_ModifiedBy = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Audit_ModifiedOnUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
                     IsDeleted = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
                     DeletedOnUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
                     DeletedBy = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true)
@@ -189,10 +189,10 @@ namespace Curvia.Persistence.EntityFrameworkCore.Migrations
                     Category = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: false),
                     Status = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: false),
                     SuggestedByUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    CreatedOnUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    CreatedBy = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
-                    ModifiedBy = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
-                    ModifiedOnUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    Audit_CreatedOnUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    Audit_CreatedBy = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Audit_ModifiedBy = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Audit_ModifiedOnUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
                     IsDeleted = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
                     DeletedOnUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
                     DeletedBy = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true)
