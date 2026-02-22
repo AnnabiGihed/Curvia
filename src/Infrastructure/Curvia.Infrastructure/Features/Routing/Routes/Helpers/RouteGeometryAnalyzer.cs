@@ -6,34 +6,11 @@ namespace Curvia.Infrastructure.Features.Routing.Routes.Helpers;
 /// Author      : Gihed Annabi
 /// Date        : 02-2026
 /// Purpose     : Computes road curvature metrics from a decoded route polyline.
-///              Implements the curvature algorithm specified in the Motorcycle Fun Routing
-///              Core design document:
-///                1. Compute heading for each segment
-///                2. Compute angular delta between consecutive headings
-///                3. Filter noise (delta &lt; 5°) and micro-zigzags (segment &lt; 20 m)
-///                4. Apply flow detection: sustained curve sequences score higher
-///                5. Normalise to [0, 1] using regional road benchmarks
-///
-///              CALIBRATION NOTE — regional ceiling vs. Alpine ceiling:
-///                The ceiling of 350°/km was benchmarked against the Stelvio Pass (~400°/km).
-///                For routes in Belgium, the Netherlands, and Northern France — the primary
-///                Curvia deployment region — the empirical data shows:
-///
-///                  Flat Brabant Walloon N-roads:    5–15°/km
-///                  Typical Ardennes secondary road: 40–80°/km (with flow bonus: 50–100°/km)
-///                  Best Wallonian twisty roads:     100–150°/km (Dinant gorge, Fonds de Quareux)
-///                  Alpine passes (Stelvio, etc.):   300–400°/km
-///
-///                With the Alpine ceiling of 350, even the very best Belgian routes scored
-///                only 0.28–0.43, making all Belgian routes 1-star regardless of real quality.
-///                The ceiling is now set to 150°/km — the regional benchmark for an
-///                "exceptionally twisty" road within the deployment area.
-///                Routes that reach the Alpine tier will naturally be clamped to 1.0.
+///              Implements the curvature algorithm specified in the Motorcycle Fun Routing.
 /// </summary>
 internal static class RouteGeometryAnalyzer
 {
 	#region Constants
-
 	/// <summary>
 	/// Number of consecutive curve segments required to qualify as a "flowing" curve sequence.
 	/// </summary>
@@ -72,11 +49,9 @@ internal static class RouteGeometryAnalyzer
 
 	/// <summary>Earth's mean radius in meters for Haversine calculations.</summary>
 	private const double EarthRadiusMeters = 6_371_000.0;
-
 	#endregion
 
 	#region Public API
-
 	/// <summary>
 	/// Computes a normalised curvature score [0.0, 1.0] for the given route polyline.
 	/// </summary>
@@ -136,9 +111,7 @@ internal static class RouteGeometryAnalyzer
 
 			consecutiveCurveCount++;
 
-			var flowMultiplier = consecutiveCurveCount >= FlowSequenceThreshold
-				? FlowBonusMultiplier
-				: 1.0;
+			var flowMultiplier = consecutiveCurveCount >= FlowSequenceThreshold ? FlowBonusMultiplier : 1.0;
 
 			totalWeightedDelta += delta * flowMultiplier;
 		}
@@ -150,40 +123,53 @@ internal static class RouteGeometryAnalyzer
 		return Math.Max(score, 0.0);
 		#endregion
 	}
-
 	#endregion
 
 	#region Private — Geometry helpers
-
+	private static double ToRad(double degrees)
+	{
+		return degrees * Math.PI / 180.0;
+	}
+	private static double ToDeg(double radians)
+	{
+		return radians * 180.0 / Math.PI;
+	}
 	private static double NormaliseAngle(double delta)
 	{
 		delta = ((delta % 360.0) + 360.0) % 360.0;
 		return delta > 180.0 ? 360.0 - delta : delta;
 	}
 
+	/// <summary>
+	/// Computes initial bearing from point a to point b in degrees [0..360).
+	/// </summary>
 	private static double Bearing(GeoCoordinate a, GeoCoordinate b)
 	{
 		var lat1 = ToRad(a.Latitude);
 		var lat2 = ToRad(b.Latitude);
 		var dLon = ToRad(b.Longitude - a.Longitude);
+
 		var y = Math.Sin(dLon) * Math.Cos(lat2);
 		var x = Math.Cos(lat1) * Math.Sin(lat2) - Math.Sin(lat1) * Math.Cos(lat2) * Math.Cos(dLon);
+
 		return (ToDeg(Math.Atan2(y, x)) + 360.0) % 360.0;
 	}
 
+	/// <summary>
+	/// Computes Haversine distance in meters between two points.
+	/// </summary>
 	private static double HaversineMeters(GeoCoordinate a, GeoCoordinate b)
 	{
 		var dLat = ToRad(b.Latitude - a.Latitude);
 		var dLon = ToRad(b.Longitude - a.Longitude);
+
 		var sinDLat = Math.Sin(dLat / 2);
 		var sinDLon = Math.Sin(dLon / 2);
+
 		var h = sinDLat * sinDLat +
 				Math.Cos(ToRad(a.Latitude)) * Math.Cos(ToRad(b.Latitude)) * sinDLon * sinDLon;
+
 		return 2 * EarthRadiusMeters * Math.Asin(Math.Min(1.0, Math.Sqrt(h)));
 	}
-
-	private static double ToRad(double degrees) => degrees * Math.PI / 180.0;
-	private static double ToDeg(double radians) => radians * 180.0 / Math.PI;
-
 	#endregion
 }
