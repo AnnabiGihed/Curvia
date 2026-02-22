@@ -22,6 +22,13 @@ namespace Curvia.API.Controllers;
 /// Author      : Gihed Annabi
 /// Date        : 02-2026
 /// Purpose     : Motorcycle maker/model catalog endpoints.
+///
+///              NOTE ON ICurrentUser.UserId:
+///              UserId is now Guid? (Keycloak sub parsed to Guid, null when unauthenticated).
+///              All [Authorize] endpoints guard with:
+///                  if (_currentUser.UserId is not { } userId) return Unauthorized();
+///              This is unreachable in practice (middleware rejects before the action runs),
+///              but satisfies the compiler and is explicit about the contract.
 /// </summary>
 [Route("api/motorcycle-catalog")]
 public sealed class MotorcycleCatalogController : ApiController
@@ -39,9 +46,8 @@ public sealed class MotorcycleCatalogController : ApiController
 	#endregion
 
 	#region Admin endpoints
-	/// <summary>
-	/// Lists all makers awaiting admin approval.
-	/// </summary>
+
+	/// <summary>Lists all makers awaiting admin approval.</summary>
 	[HttpGet("admin/makers/pending")]
 	[Authorize(Roles = "Administrator")]
 	[ProducesResponseType(typeof(IReadOnlyList<PendingMakerDto>), StatusCodes.Status200OK)]
@@ -50,9 +56,7 @@ public sealed class MotorcycleCatalogController : ApiController
 		return HandleResult(await Sender.Send(new GetPendingMakersQuery(), ct));
 	}
 
-	/// <summary>
-	/// Lists all models awaiting admin approval.
-	/// </summary>
+	/// <summary>Lists all models awaiting admin approval.</summary>
 	[HttpGet("admin/models/pending")]
 	[Authorize(Roles = "Administrator")]
 	[ProducesResponseType(typeof(IReadOnlyList<PendingModelDto>), StatusCodes.Status200OK)]
@@ -61,9 +65,7 @@ public sealed class MotorcycleCatalogController : ApiController
 		return HandleResult(await Sender.Send(new GetPendingModelsQuery(), ct));
 	}
 
-	/// <summary>
-	/// Admin approves a pending maker suggestion.
-	/// </summary>
+	/// <summary>Admin approves a pending maker suggestion.</summary>
 	[Authorize(Roles = "Administrator")]
 	[HttpPut("admin/makers/{id:guid}/approve")]
 	[ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -74,9 +76,7 @@ public sealed class MotorcycleCatalogController : ApiController
 		return result.IsFailure ? HandleFailure(result) : NoContent();
 	}
 
-	/// <summary>
-	/// Admin approves a pending model suggestion.
-	/// </summary>
+	/// <summary>Admin approves a pending model suggestion.</summary>
 	[Authorize(Roles = "Administrator")]
 	[HttpPut("admin/models/{id:guid}/approve")]
 	[ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -87,9 +87,7 @@ public sealed class MotorcycleCatalogController : ApiController
 		return result.IsFailure ? HandleFailure(result) : NoContent();
 	}
 
-	/// <summary>
-	/// Admin adds a new official maker directly (no approval step).
-	/// </summary>
+	/// <summary>Admin adds a new official maker directly (no approval step).</summary>
 	[HttpPost("admin/makers")]
 	[Authorize(Roles = "Administrator")]
 	[ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -103,28 +101,28 @@ public sealed class MotorcycleCatalogController : ApiController
 		return CreatedAtAction(nameof(GetMakers), null, result.Value);
 	}
 
-	/// <summary>
-	/// Admin adds a new official model to an existing maker (no approval step).
-	/// </summary>
+	/// <summary>Admin adds a new official model to an existing maker (no approval step).</summary>
 	[Authorize(Roles = "Administrator")]
 	[HttpPost("admin/makers/{makerId:guid}/models")]
 	[ProducesResponseType(StatusCodes.Status404NotFound)]
 	[ProducesResponseType(StatusCodes.Status409Conflict)]
 	[ProducesResponseType(typeof(ModelDto), StatusCodes.Status201Created)]
-	public async Task<IActionResult> AddModel([FromRoute] Guid makerId, [FromBody] AddModelRequest request, CancellationToken ct)
+	public async Task<IActionResult> AddModel(
+		[FromRoute] Guid makerId, [FromBody] AddModelRequest request, CancellationToken ct)
 	{
-		var result = await Sender.Send(new AddModelCommand(makerId, request.Name, request.Category, _currentUser.Username), ct);
+		var result = await Sender.Send(
+			new AddModelCommand(makerId, request.Name, request.Category, _currentUser.Username), ct);
 
 		if (result.IsFailure) return HandleFailure(result);
 
 		return CreatedAtAction(nameof(GetModels), new { makerId = result.Value.MakerId }, result.Value);
 	}
+
 	#endregion
 
 	#region Public endpoints
-	/// <summary>
-	/// All official motorcycle makers, sorted alphabetically.
-	/// </summary>
+
+	/// <summary>All official motorcycle makers, sorted alphabetically.</summary>
 	[AllowAnonymous]
 	[HttpGet("makers")]
 	[ProducesResponseType(typeof(IReadOnlyList<MakerDto>), StatusCodes.Status200OK)]
@@ -133,9 +131,7 @@ public sealed class MotorcycleCatalogController : ApiController
 		return HandleResult(await Sender.Send(new GetOfficialMakersQuery(), ct));
 	}
 
-	/// <summary>
-	/// Official models for a given maker, sorted alphabetically.
-	/// </summary>
+	/// <summary>Official models for a given maker, sorted alphabetically.</summary>
 	[AllowAnonymous]
 	[HttpGet("makers/{makerId:guid}/models")]
 	[ProducesResponseType(typeof(IReadOnlyList<ModelDto>), StatusCodes.Status200OK)]
@@ -143,9 +139,11 @@ public sealed class MotorcycleCatalogController : ApiController
 	{
 		return HandleResult(await Sender.Send(new GetOfficialModelsQuery(makerId), ct));
 	}
+
 	#endregion
 
 	#region Authenticated user endpoints
+
 	/// <summary>
 	/// Suggest a maker not in the official list.
 	/// The suggestion is stored as PendingValidation and shown to admins for review.
@@ -154,9 +152,15 @@ public sealed class MotorcycleCatalogController : ApiController
 	[HttpPost("makers/suggest")]
 	[ProducesResponseType(StatusCodes.Status409Conflict)]
 	[ProducesResponseType(typeof(MakerDto), StatusCodes.Status201Created)]
-	public async Task<IActionResult> SuggestMaker([FromBody] SuggestMakerRequest request, CancellationToken ct)
+	public async Task<IActionResult> SuggestMaker(
+		[FromBody] SuggestMakerRequest request, CancellationToken ct)
 	{
-		var result = await Sender.Send(new SuggestMakerCommand(request.Name, _currentUser.UserId), ct);
+		// ICurrentUser.UserId is Guid? — null only when unauthenticated.
+		// [Authorize] guarantees non-null here; the guard satisfies the compiler.
+		if (_currentUser.UserId is not { } userId)
+			return Unauthorized();
+
+		var result = await Sender.Send(new SuggestMakerCommand(request.Name, userId), ct);
 
 		if (result.IsFailure) return HandleFailure(result);
 
@@ -173,14 +177,22 @@ public sealed class MotorcycleCatalogController : ApiController
 	[ProducesResponseType(StatusCodes.Status404NotFound)]
 	[ProducesResponseType(StatusCodes.Status409Conflict)]
 	[ProducesResponseType(typeof(ModelDto), StatusCodes.Status201Created)]
-	public async Task<IActionResult> SuggestModel([FromRoute] Guid makerId,	[FromBody] SuggestModelRequest request,	CancellationToken ct)
+	public async Task<IActionResult> SuggestModel(
+		[FromRoute] Guid makerId, [FromBody] SuggestModelRequest request, CancellationToken ct)
 	{
-		var result = await Sender.Send(new SuggestModelCommand(makerId, request.Name, request.Category, _currentUser.UserId), ct);
+		// ICurrentUser.UserId is Guid? — null only when unauthenticated.
+		// [Authorize] guarantees non-null here; the guard satisfies the compiler.
+		if (_currentUser.UserId is not { } userId)
+			return Unauthorized();
+
+		var result = await Sender.Send(
+			new SuggestModelCommand(makerId, request.Name, request.Category, userId), ct);
 
 		if (result.IsFailure) return HandleFailure(result);
 
 		return CreatedAtAction(nameof(GetModels), new { makerId = result.Value.MakerId }, result.Value);
 	}
+
 	#endregion
 }
 

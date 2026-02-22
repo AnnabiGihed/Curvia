@@ -1,8 +1,8 @@
-﻿using Curvia.Domain.Features.MotorcycleCatalog.Aggregates;
+﻿using Microsoft.EntityFrameworkCore;
 using Curvia.Domain.Features.MotorcycleCatalog.Enums;
+using Curvia.Domain.Features.MotorcycleCatalog.Aggregates;
 using Curvia.Domain.Features.MotorcycleCatalog.Repositories;
 using Curvia.Persistence.EntityFrameworkCore.PersistenceContext;
-using Microsoft.EntityFrameworkCore;
 using Templates.Core.Infrastructure.Persistence.EntityFrameworkCore.Repositories;
 
 namespace Curvia.Persistence.EntityFrameworkCore.Features.MotorcycleCatalog.Repositories;
@@ -13,31 +13,49 @@ namespace Curvia.Persistence.EntityFrameworkCore.Features.MotorcycleCatalog.Repo
 /// Purpose     : EF Core implementation of <see cref="IMotorcycleMakerRepository"/>.
 ///              Global query filter (IsDeleted = false) applied automatically.
 /// </summary>
-internal sealed class MotorcycleMakerRepository
-	: BaseAsyncCommandRepository<MotorcycleMaker, MotorcycleMakerId>, IMotorcycleMakerRepository
+internal sealed class MotorcycleMakerRepository : BaseAsyncCommandRepository<MotorcycleMaker, MotorcycleMakerId>, IMotorcycleMakerRepository
 {
+	#region Constructor
+	/// <summary>
+	/// Initializes a new instance of <see cref="MotorcycleMakerRepository"/> backed by <see cref="CurviaDbContext"/>.
+	/// </summary>
+	/// <param name="dbContext">EF Core database context.</param>
 	public MotorcycleMakerRepository(CurviaDbContext dbContext) : base(dbContext) { }
+	#endregion
 
-	public async Task<IReadOnlyList<MotorcycleMaker>> GetAllOfficialAsync(CancellationToken ct = default)
-		=> await DbContext.Set<MotorcycleMaker>()
-			.AsNoTracking()
-			.Where(m => m.Status == CatalogItemStatus.Official)
-			.OrderBy(m => m.Name)
-			.ToListAsync(ct);
+	#region IMotorcycleMakerRepository
+	/// <inheritdoc/>
+	public async Task<bool> OfficialNameExistsAsync(string name, CancellationToken ct = default)
+	{
+		return await DbContext.Set<MotorcycleMaker>()
+			.AnyAsync(m => m.Status == CatalogItemStatus.Official && m.Name.ToLower() == name.Trim().ToLower(), ct);
+	}
 
+	/// <inheritdoc/>
 	public async Task<IReadOnlyList<MotorcycleMaker>> GetAllPendingAsync(CancellationToken ct = default)
-		=> await DbContext.Set<MotorcycleMaker>()
+	{
+		return await DbContext.Set<MotorcycleMaker>()
 			.AsNoTracking()
 			.Where(m => m.Status == CatalogItemStatus.PendingValidation)
 			.OrderBy(m => m.Audit.CreatedOnUtc)
 			.ToListAsync(ct);
+	}
 
+	/// <inheritdoc/>
+	public async Task<IReadOnlyList<MotorcycleMaker>> GetAllOfficialAsync(CancellationToken ct = default)
+	{
+		return await DbContext.Set<MotorcycleMaker>()
+			.AsNoTracking()
+			.Where(m => m.Status == CatalogItemStatus.Official)
+			.OrderBy(m => m.Name)
+			.ToListAsync(ct);
+	}
+
+	/// <inheritdoc/>
 	public async Task<MotorcycleMaker?> FindByIdAsync(MotorcycleMakerId id, CancellationToken ct = default)
-		=> await DbContext.Set<MotorcycleMaker>()
+	{
+		return await DbContext.Set<MotorcycleMaker>()
 			.FirstOrDefaultAsync(m => m.Id == id, ct);
-
-	public async Task<bool> OfficialNameExistsAsync(string name, CancellationToken ct = default)
-		=> await DbContext.Set<MotorcycleMaker>()
-			.AnyAsync(m => m.Status == CatalogItemStatus.Official
-						&& m.Name.ToLower() == name.Trim().ToLower(), ct);
+	}
+	#endregion
 }

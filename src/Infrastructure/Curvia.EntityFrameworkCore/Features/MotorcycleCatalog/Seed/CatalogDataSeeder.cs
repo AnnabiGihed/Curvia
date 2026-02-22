@@ -13,11 +13,20 @@ namespace Curvia.Persistence.EntityFrameworkCore.Features.MotorcycleCatalog.Seed
 /// </summary>
 public class CatalogDataSeeder
 {
+	#region Constants
 	private const string SystemActor = "system:seed";
+	#endregion
 
+	#region Public Methods
+	/// <summary>
+	/// Seeds the catalog if no official makers exist yet.
+	/// Inserts official <see cref="MotorcycleMaker"/> rows first, then related <see cref="MotorcycleCatalogModel"/> rows.
+	/// </summary>
+	/// <param name="db">EF Core database context.</param>
+	/// <param name="logger">Logger used to emit progress information.</param>
+	/// <param name="ct">Cancellation token.</param>
 	public static async Task SeedAsync(CurviaDbContext db, ILogger logger, CancellationToken ct = default)
 	{
-		// Idempotent guard — skip entirely if any official maker already exists
 		if (await db.Set<MotorcycleMaker>().AnyAsync(m => m.Status == CatalogItemStatus.Official, ct))
 		{
 			logger.LogInformation("Motorcycle catalog already seeded — skipping.");
@@ -34,13 +43,18 @@ public class CatalogDataSeeder
 		await db.Set<MotorcycleCatalogModel>().AddRangeAsync(models, ct);
 		await db.SaveChangesAsync(ct);
 
-		logger.LogInformation(
-			"Motorcycle catalog seeded: {MakerCount} makers, {ModelCount} models.",
-			makers.Count, models.Count);
+		logger.LogInformation("Motorcycle catalog seeded: {MakerCount} makers, {ModelCount} models.", makers.Count, models.Count);
 	}
+	#endregion
 
-	// ── Maker table ───────────────────────────────────────────────────────────
-
+	#region Maker table
+	/// <summary>
+	/// Builds the set of official motorcycle makers to be seeded.
+	/// Returns a dictionary keyed by maker name to ease model creation by lookup.
+	/// </summary>
+	/// <returns>
+	/// Dictionary where key is the maker name and value holds the created maker aggregate plus its identifier.
+	/// </returns>
 	private static Dictionary<string, (MotorcycleMaker Maker, MotorcycleMakerId Id)> BuildMakers()
 	{
 		var names = new[]
@@ -60,11 +74,15 @@ public class CatalogDataSeeder
 
 		return result;
 	}
+	#endregion
 
-	// ── Model table ───────────────────────────────────────────────────────────
-
-	private static List<MotorcycleCatalogModel> BuildModels(
-		Dictionary<string, (MotorcycleMaker Maker, MotorcycleMakerId Id)> makers)
+	#region Model table
+	/// <summary>
+	/// Builds the set of official motorcycle models to be seeded, linked to their maker identifiers.
+	/// </summary>
+	/// <param name="makers">Dictionary of makers keyed by name (from <see cref="BuildMakers"/>).</param>
+	/// <returns>List of catalog models to insert.</returns>
+	private static List<MotorcycleCatalogModel> BuildModels(Dictionary<string, (MotorcycleMaker Maker, MotorcycleMakerId Id)> makers)
 	{
 		var models = new List<MotorcycleCatalogModel>();
 
@@ -74,7 +92,7 @@ public class CatalogDataSeeder
 			models.Add(MotorcycleCatalogModel.Create(makerId, modelName, cat, SystemActor).Value);
 		}
 
-		// ── Aprilia ───────────────────────────────────────────────────────────
+		#region Aprilia
 		Add("Aprilia", "RS 457", MotorcycleCategory.Sport);
 		Add("Aprilia", "RS 660", MotorcycleCategory.Sport);
 		Add("Aprilia", "RSV4", MotorcycleCategory.Sport);
@@ -83,13 +101,15 @@ public class CatalogDataSeeder
 		Add("Aprilia", "Shiver 900", MotorcycleCategory.Naked);
 		Add("Aprilia", "Dorsoduro 900", MotorcycleCategory.Naked);
 		Add("Aprilia", "Tuareg 660", MotorcycleCategory.Adventure);
+		#endregion
 
-		// ── Benelli ───────────────────────────────────────────────────────────
+		#region Benelli
 		Add("Benelli", "752S", MotorcycleCategory.Naked);
 		Add("Benelli", "Leoncino 500", MotorcycleCategory.Scrambler);
 		Add("Benelli", "TRK 502", MotorcycleCategory.Adventure);
+		#endregion
 
-		// ── BMW Motorrad ──────────────────────────────────────────────────────
+		#region BMW Motorrad
 		Add("BMW Motorrad", "CE 04", MotorcycleCategory.Electric);
 		Add("BMW Motorrad", "F 850 GS", MotorcycleCategory.Adventure);
 		Add("BMW Motorrad", "F 900 R", MotorcycleCategory.Naked);
@@ -105,8 +125,9 @@ public class CatalogDataSeeder
 		Add("BMW Motorrad", "R nineT Scrambler", MotorcycleCategory.Scrambler);
 		Add("BMW Motorrad", "S 1000 RR", MotorcycleCategory.Sport);
 		Add("BMW Motorrad", "S 1000 XR", MotorcycleCategory.Adventure);
+		#endregion
 
-		// ── Ducati ────────────────────────────────────────────────────────────
+		#region Ducati
 		Add("Ducati", "Desert Sled", MotorcycleCategory.Scrambler);
 		Add("Ducati", "Diavel V4", MotorcycleCategory.Cruiser);
 		Add("Ducati", "Hypermotard 698", MotorcycleCategory.Naked);
@@ -120,8 +141,9 @@ public class CatalogDataSeeder
 		Add("Ducati", "Scrambler Icon", MotorcycleCategory.Scrambler);
 		Add("Ducati", "Streetfighter V2", MotorcycleCategory.Naked);
 		Add("Ducati", "Streetfighter V4", MotorcycleCategory.Naked);
+		#endregion
 
-		// ── Harley-Davidson ───────────────────────────────────────────────────
+		#region Harley-Davidson
 		Add("Harley-Davidson", "Fat Boy", MotorcycleCategory.Cruiser);
 		Add("Harley-Davidson", "LiveWire", MotorcycleCategory.Electric);
 		Add("Harley-Davidson", "Low Rider S", MotorcycleCategory.Cruiser);
@@ -130,8 +152,9 @@ public class CatalogDataSeeder
 		Add("Harley-Davidson", "Road Glide", MotorcycleCategory.Touring);
 		Add("Harley-Davidson", "Sportster S", MotorcycleCategory.Cruiser);
 		Add("Harley-Davidson", "Street Glide", MotorcycleCategory.Touring);
+		#endregion
 
-		// ── Honda ─────────────────────────────────────────────────────────────
+		#region Honda
 		Add("Honda", "Africa Twin", MotorcycleCategory.Adventure);
 		Add("Honda", "Africa Twin Adventure Sports", MotorcycleCategory.Adventure);
 		Add("Honda", "CB125R", MotorcycleCategory.Naked);
@@ -147,22 +170,25 @@ public class CatalogDataSeeder
 		Add("Honda", "NC750X", MotorcycleCategory.Adventure);
 		Add("Honda", "NT1100", MotorcycleCategory.Touring);
 		Add("Honda", "XL750 Transalp", MotorcycleCategory.Adventure);
+		#endregion
 
-		// ── Husqvarna ─────────────────────────────────────────────────────────
+		#region Husqvarna
 		Add("Husqvarna", "Norden 901", MotorcycleCategory.Adventure);
 		Add("Husqvarna", "Svartpilen 401", MotorcycleCategory.Scrambler);
 		Add("Husqvarna", "Svartpilen 801", MotorcycleCategory.Scrambler);
 		Add("Husqvarna", "Vitpilen 801", MotorcycleCategory.Naked);
+		#endregion
 
-		// ── Indian ────────────────────────────────────────────────────────────
+		#region Indian
 		Add("Indian", "Chief", MotorcycleCategory.Cruiser);
 		Add("Indian", "Chieftain", MotorcycleCategory.Touring);
 		Add("Indian", "FTR 1200", MotorcycleCategory.Naked);
 		Add("Indian", "Pursuit", MotorcycleCategory.Touring);
 		Add("Indian", "Scout", MotorcycleCategory.Cruiser);
 		Add("Indian", "Springfield", MotorcycleCategory.Touring);
+		#endregion
 
-		// ── Kawasaki ──────────────────────────────────────────────────────────
+		#region Kawasaki
 		Add("Kawasaki", "Ninja 650", MotorcycleCategory.Sport);
 		Add("Kawasaki", "Ninja 1000SX", MotorcycleCategory.Sport);
 		Add("Kawasaki", "Ninja ZX-6R", MotorcycleCategory.Sport);
@@ -175,8 +201,9 @@ public class CatalogDataSeeder
 		Add("Kawasaki", "Z900RS", MotorcycleCategory.Retro);
 		Add("Kawasaki", "Z900RS Cafe", MotorcycleCategory.Retro);
 		Add("Kawasaki", "Z1000", MotorcycleCategory.Naked);
+		#endregion
 
-		// ── KTM ───────────────────────────────────────────────────────────────
+		#region KTM
 		Add("KTM", "390 Duke", MotorcycleCategory.Naked);
 		Add("KTM", "450 Rally", MotorcycleCategory.Enduro);
 		Add("KTM", "790 Adventure", MotorcycleCategory.Adventure);
@@ -187,29 +214,33 @@ public class CatalogDataSeeder
 		Add("KTM", "1290 Super Duke GT", MotorcycleCategory.Touring);
 		Add("KTM", "1290 Super Duke R", MotorcycleCategory.Naked);
 		Add("KTM", "1390 Super Duke R", MotorcycleCategory.Naked);
+		#endregion
 
-		// ── Moto Guzzi ────────────────────────────────────────────────────────
+		#region Moto Guzzi
 		Add("Moto Guzzi", "California 1400", MotorcycleCategory.Cruiser);
 		Add("Moto Guzzi", "Stelvio", MotorcycleCategory.Adventure);
 		Add("Moto Guzzi", "V7", MotorcycleCategory.Retro);
 		Add("Moto Guzzi", "V85 TT", MotorcycleCategory.Adventure);
 		Add("Moto Guzzi", "V9 Bobber", MotorcycleCategory.Cruiser);
+		#endregion
 
-		// ── MV Agusta ─────────────────────────────────────────────────────────
+		#region MV Agusta
 		Add("MV Agusta", "Brutale 1000 RS", MotorcycleCategory.Naked);
 		Add("MV Agusta", "Dragster 800 RR", MotorcycleCategory.Naked);
 		Add("MV Agusta", "F3 800", MotorcycleCategory.Sport);
 		Add("MV Agusta", "Rush 1000", MotorcycleCategory.Naked);
 		Add("MV Agusta", "Turismo Veloce 800", MotorcycleCategory.Touring);
+		#endregion
 
-		// ── Royal Enfield ─────────────────────────────────────────────────────
+		#region Royal Enfield
 		Add("Royal Enfield", "Continental GT 650", MotorcycleCategory.Retro);
 		Add("Royal Enfield", "Himalayan 450", MotorcycleCategory.Adventure);
 		Add("Royal Enfield", "Hunter 350", MotorcycleCategory.Naked);
 		Add("Royal Enfield", "Interceptor 650", MotorcycleCategory.Retro);
 		Add("Royal Enfield", "Meteor 350", MotorcycleCategory.Cruiser);
+		#endregion
 
-		// ── Suzuki ────────────────────────────────────────────────────────────
+		#region Suzuki
 		Add("Suzuki", "GSX-8S", MotorcycleCategory.Naked);
 		Add("Suzuki", "GSX-S1000", MotorcycleCategory.Naked);
 		Add("Suzuki", "GSX-R750", MotorcycleCategory.Sport);
@@ -220,8 +251,9 @@ public class CatalogDataSeeder
 		Add("Suzuki", "V-Strom 650", MotorcycleCategory.Adventure);
 		Add("Suzuki", "V-Strom 800DE", MotorcycleCategory.Adventure);
 		Add("Suzuki", "V-Strom 1050", MotorcycleCategory.Adventure);
+		#endregion
 
-		// ── Triumph ───────────────────────────────────────────────────────────
+		#region Triumph
 		Add("Triumph", "Bonneville T100", MotorcycleCategory.Retro);
 		Add("Triumph", "Bonneville T120", MotorcycleCategory.Retro);
 		Add("Triumph", "Daytona 660", MotorcycleCategory.Sport);
@@ -234,8 +266,9 @@ public class CatalogDataSeeder
 		Add("Triumph", "Thruxton RS", MotorcycleCategory.Retro);
 		Add("Triumph", "Tiger 900", MotorcycleCategory.Adventure);
 		Add("Triumph", "Tiger 1200", MotorcycleCategory.Adventure);
+		#endregion
 
-		// ── Yamaha ────────────────────────────────────────────────────────────
+		#region Yamaha
 		Add("Yamaha", "MT-03", MotorcycleCategory.Naked);
 		Add("Yamaha", "MT-07", MotorcycleCategory.Naked);
 		Add("Yamaha", "MT-09", MotorcycleCategory.Naked);
@@ -249,7 +282,9 @@ public class CatalogDataSeeder
 		Add("Yamaha", "Tracer 9", MotorcycleCategory.Touring);
 		Add("Yamaha", "XSR700", MotorcycleCategory.Retro);
 		Add("Yamaha", "XSR900", MotorcycleCategory.Retro);
+		#endregion
 
 		return models;
 	}
+	#endregion
 }

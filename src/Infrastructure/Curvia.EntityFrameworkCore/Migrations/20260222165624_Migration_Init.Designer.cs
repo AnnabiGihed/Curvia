@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Curvia.Persistence.EntityFrameworkCore.Migrations
 {
     [DbContext(typeof(CurviaDbContext))]
-    [Migration("20260125210808_Migration_Init")]
+    [Migration("20260222165624_Migration_Init")]
     partial class Migration_Init
     {
         /// <inheritdoc />
@@ -20,10 +20,171 @@ namespace Curvia.Persistence.EntityFrameworkCore.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.2")
+                .HasAnnotation("ProductVersion", "10.0.3")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
+
+            modelBuilder.Entity("Curvia.Domain.Features.MotorcycleCatalog.Aggregates.MotorcycleCatalogModel", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTime?>("DeletedOnUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletedOnUtc");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<Guid>("MakerId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("MakerId");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<Guid?>("SuggestedByUserId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("SuggestedByUserId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MakerId")
+                        .HasDatabaseName("IX_MotorcycleModels_MakerId");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("IX_MotorcycleModels_Status");
+
+                    b.ToTable("MotorcycleModels", (string)null);
+                });
+
+            modelBuilder.Entity("Curvia.Domain.Features.MotorcycleCatalog.Aggregates.MotorcycleMaker", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTime?>("DeletedOnUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletedOnUtc");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<Guid?>("SuggestedByUserId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("SuggestedByUserId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .HasDatabaseName("IX_MotorcycleMakers_Name");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("IX_MotorcycleMakers_Status");
+
+                    b.ToTable("MotorcycleMakers", (string)null);
+                });
+
+            modelBuilder.Entity("Curvia.Domain.Features.Motorcycles.Aggregates.Motorcycle", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("DeletedBy");
+
+                    b.Property<DateTime?>("DeletedOnUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletedOnUtc");
+
+                    b.Property<int?>("EngineCc")
+                        .HasColumnType("int")
+                        .HasColumnName("EngineCc");
+
+                    b.Property<bool>("IsDefault")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDefault");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<string>("Maker")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("Maker");
+
+                    b.Property<string>("Model")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)")
+                        .HasColumnName("Model");
+
+                    b.Property<string>("Nickname")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("Nickname");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("UserId");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("int")
+                        .HasColumnName("Year");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("IX_Motorcycles_UserId");
+
+                    b.HasIndex("UserId", "IsDefault")
+                        .HasDatabaseName("IX_Motorcycles_UserId_IsDefault");
+
+                    b.ToTable("Motorcycles", (string)null);
+                });
 
             modelBuilder.Entity("Curvia.Domain.Features.Routing.RoutePlans.Aggregate.RoutePlan", b =>
                 {
@@ -73,6 +234,239 @@ namespace Curvia.Persistence.EntityFrameworkCore.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Routes", (string)null);
+                });
+
+            modelBuilder.Entity("Curvia.Domain.Features.SavedRoutes.Aggregate.SavedRoute", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("DeletedBy");
+
+                    b.Property<DateTime?>("DeletedOnUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletedOnUtc");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("Name");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("Notes");
+
+                    b.Property<Guid>("RouteId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("RouteId");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("UserId");
+
+                    b.Property<int>("Visibility")
+                        .HasColumnType("int")
+                        .HasColumnName("Visibility");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RouteId")
+                        .HasDatabaseName("IX_SavedRoutes_RouteId");
+
+                    b.HasIndex("Visibility")
+                        .HasDatabaseName("IX_SavedRoutes_Visibility");
+
+                    b.HasIndex("UserId", "RouteId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_SavedRoutes_UserId_RouteId");
+
+                    b.ToTable("SavedRoutes", (string)null);
+                });
+
+            modelBuilder.Entity("Curvia.Domain.Features.Users.Aggregate.User", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("DeletedBy");
+
+                    b.Property<DateTime?>("DeletedOnUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletedOnUtc");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("DisplayName");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("nvarchar(320)")
+                        .HasColumnName("Email");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<string>("KeycloakId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)")
+                        .HasColumnName("KeycloakId");
+
+                    b.Property<string>("Locale")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)")
+                        .HasColumnName("Locale");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Email")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AppUsers_Email");
+
+                    b.HasIndex("KeycloakId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AppUsers_KeycloakId");
+
+                    b.ToTable("AppUsers", (string)null);
+                });
+
+            modelBuilder.Entity("Curvia.Domain.Features.MotorcycleCatalog.Aggregates.MotorcycleCatalogModel", b =>
+                {
+                    b.HasOne("Curvia.Domain.Features.MotorcycleCatalog.Aggregates.MotorcycleMaker", null)
+                        .WithMany()
+                        .HasForeignKey("MakerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_MotorcycleModels_MotorcycleMakers_MakerId");
+
+                    b.OwnsOne("Templates.Core.Domain.Primitives.AuditInfo", "Audit", b1 =>
+                        {
+                            b1.Property<Guid>("MotorcycleCatalogModelId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("CreatedBy")
+                                .HasMaxLength(256)
+                                .HasColumnType("nvarchar(256)")
+                                .HasColumnName("CreatedBy");
+
+                            b1.Property<DateTime>("CreatedOnUtc")
+                                .HasColumnType("datetime2")
+                                .HasColumnName("CreatedOnUtc");
+
+                            b1.Property<string>("ModifiedBy")
+                                .HasMaxLength(256)
+                                .HasColumnType("nvarchar(256)")
+                                .HasColumnName("ModifiedBy");
+
+                            b1.Property<DateTime?>("ModifiedOnUtc")
+                                .HasColumnType("datetime2")
+                                .HasColumnName("ModifiedOnUtc");
+
+                            b1.HasKey("MotorcycleCatalogModelId");
+
+                            b1.ToTable("MotorcycleModels");
+
+                            b1.WithOwner()
+                                .HasForeignKey("MotorcycleCatalogModelId");
+                        });
+
+                    b.Navigation("Audit")
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Curvia.Domain.Features.MotorcycleCatalog.Aggregates.MotorcycleMaker", b =>
+                {
+                    b.OwnsOne("Templates.Core.Domain.Primitives.AuditInfo", "Audit", b1 =>
+                        {
+                            b1.Property<Guid>("MotorcycleMakerId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("CreatedBy")
+                                .HasMaxLength(256)
+                                .HasColumnType("nvarchar(256)")
+                                .HasColumnName("CreatedBy");
+
+                            b1.Property<DateTime>("CreatedOnUtc")
+                                .HasColumnType("datetime2")
+                                .HasColumnName("CreatedOnUtc");
+
+                            b1.Property<string>("ModifiedBy")
+                                .HasMaxLength(256)
+                                .HasColumnType("nvarchar(256)")
+                                .HasColumnName("ModifiedBy");
+
+                            b1.Property<DateTime?>("ModifiedOnUtc")
+                                .HasColumnType("datetime2")
+                                .HasColumnName("ModifiedOnUtc");
+
+                            b1.HasKey("MotorcycleMakerId");
+
+                            b1.ToTable("MotorcycleMakers");
+
+                            b1.WithOwner()
+                                .HasForeignKey("MotorcycleMakerId");
+                        });
+
+                    b.Navigation("Audit")
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Curvia.Domain.Features.Motorcycles.Aggregates.Motorcycle", b =>
+                {
+                    b.HasOne("Curvia.Domain.Features.Users.Aggregate.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_Motorcycles_AppUsers_UserId");
+
+                    b.OwnsOne("Templates.Core.Domain.Primitives.AuditInfo", "Audit", b1 =>
+                        {
+                            b1.Property<Guid>("MotorcycleId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("CreatedBy")
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.Property<DateTime>("CreatedOnUtc")
+                                .HasColumnType("datetime2");
+
+                            b1.Property<string>("ModifiedBy")
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.Property<DateTime?>("ModifiedOnUtc")
+                                .HasColumnType("datetime2");
+
+                            b1.HasKey("MotorcycleId");
+
+                            b1.ToTable("Motorcycles");
+
+                            b1.WithOwner()
+                                .HasForeignKey("MotorcycleId");
+                        });
+
+                    b.Navigation("Audit")
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Curvia.Domain.Features.Routing.RoutePlans.Aggregate.RoutePlan", b =>
@@ -153,6 +547,10 @@ namespace Curvia.Persistence.EntityFrameworkCore.Migrations
                                 .HasColumnType("bit")
                                 .HasColumnName("IsLoop");
 
+                            b1.Property<int>("ReturnStrategy")
+                                .HasColumnType("int")
+                                .HasColumnName("LoopReturnStrategy");
+
                             b1.HasKey("RoutePlanId");
 
                             b1.ToTable("RoutePlans");
@@ -194,9 +592,21 @@ namespace Curvia.Persistence.EntityFrameworkCore.Migrations
                                 .HasColumnType("bit")
                                 .HasColumnName("AvoidTolls");
 
+                            b1.Property<bool>("AvoidUnpaved")
+                                .HasColumnType("bit")
+                                .HasColumnName("AvoidUnpaved");
+
                             b1.Property<double>("MaxDetourRatio")
                                 .HasColumnType("float")
                                 .HasColumnName("MaxDetourRatio");
+
+                            b1.Property<long?>("MaxDurationSeconds")
+                                .HasColumnType("bigint")
+                                .HasColumnName("MaxDurationSeconds");
+
+                            b1.Property<int>("UrbanTolerance")
+                                .HasColumnType("int")
+                                .HasColumnName("UrbanTolerance");
 
                             b1.HasKey("RoutePlanId");
 
@@ -639,6 +1049,158 @@ namespace Curvia.Persistence.EntityFrameworkCore.Migrations
                     b.Navigation("Segments");
 
                     b.Navigation("Stats")
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Curvia.Domain.Features.SavedRoutes.Aggregate.SavedRoute", b =>
+                {
+                    b.HasOne("Curvia.Domain.Features.Users.Aggregate.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_SavedRoutes_AppUsers_UserId");
+
+                    b.OwnsOne("Templates.Core.Domain.Primitives.AuditInfo", "Audit", b1 =>
+                        {
+                            b1.Property<Guid>("SavedRouteId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("CreatedBy")
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.Property<DateTime>("CreatedOnUtc")
+                                .HasColumnType("datetime2");
+
+                            b1.Property<string>("ModifiedBy")
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.Property<DateTime?>("ModifiedOnUtc")
+                                .HasColumnType("datetime2");
+
+                            b1.HasKey("SavedRouteId");
+
+                            b1.ToTable("SavedRoutes");
+
+                            b1.WithOwner()
+                                .HasForeignKey("SavedRouteId");
+                        });
+
+                    b.OwnsMany("Curvia.Domain.Features.SavedRoutes.Entities.RouteReview", "Reviews", b1 =>
+                        {
+                            b1.Property<Guid>("Id")
+                                .HasColumnType("uniqueidentifier")
+                                .HasColumnName("Id");
+
+                            b1.Property<string>("Comment")
+                                .HasMaxLength(2000)
+                                .HasColumnType("nvarchar(2000)")
+                                .HasColumnName("Comment");
+
+                            b1.Property<string>("DeletedBy")
+                                .HasMaxLength(256)
+                                .HasColumnType("nvarchar(256)")
+                                .HasColumnName("DeletedBy");
+
+                            b1.Property<DateTime?>("DeletedOnUtc")
+                                .HasColumnType("datetime2")
+                                .HasColumnName("DeletedOnUtc");
+
+                            b1.Property<bool>("IsDeleted")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("bit")
+                                .HasDefaultValue(false)
+                                .HasColumnName("IsDeleted");
+
+                            b1.Property<int>("Rating")
+                                .HasColumnType("int")
+                                .HasColumnName("Rating");
+
+                            b1.Property<DateTime>("ReviewedAtUtc")
+                                .HasColumnType("datetime2")
+                                .HasColumnName("ReviewedAtUtc");
+
+                            b1.Property<Guid>("ReviewerUserId")
+                                .HasColumnType("uniqueidentifier")
+                                .HasColumnName("ReviewerUserId");
+
+                            b1.Property<Guid>("SavedRouteId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("SavedRouteId", "ReviewerUserId")
+                                .IsUnique()
+                                .HasDatabaseName("UX_RouteReviews_SavedRouteId_ReviewerUserId");
+
+                            b1.ToTable("RouteReviews", (string)null);
+
+                            b1.WithOwner()
+                                .HasForeignKey("SavedRouteId");
+
+                            b1.OwnsOne("Templates.Core.Domain.Primitives.AuditInfo", "Audit", b2 =>
+                                {
+                                    b2.Property<Guid>("RouteReviewId")
+                                        .HasColumnType("uniqueidentifier");
+
+                                    b2.Property<string>("CreatedBy")
+                                        .HasColumnType("nvarchar(max)");
+
+                                    b2.Property<DateTime>("CreatedOnUtc")
+                                        .HasColumnType("datetime2");
+
+                                    b2.Property<string>("ModifiedBy")
+                                        .HasColumnType("nvarchar(max)");
+
+                                    b2.Property<DateTime?>("ModifiedOnUtc")
+                                        .HasColumnType("datetime2");
+
+                                    b2.HasKey("RouteReviewId");
+
+                                    b2.ToTable("RouteReviews");
+
+                                    b2.WithOwner()
+                                        .HasForeignKey("RouteReviewId");
+                                });
+
+                            b1.Navigation("Audit")
+                                .IsRequired();
+                        });
+
+                    b.Navigation("Audit")
+                        .IsRequired();
+
+                    b.Navigation("Reviews");
+                });
+
+            modelBuilder.Entity("Curvia.Domain.Features.Users.Aggregate.User", b =>
+                {
+                    b.OwnsOne("Templates.Core.Domain.Primitives.AuditInfo", "Audit", b1 =>
+                        {
+                            b1.Property<Guid>("UserId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("CreatedBy")
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.Property<DateTime>("CreatedOnUtc")
+                                .HasColumnType("datetime2");
+
+                            b1.Property<string>("ModifiedBy")
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.Property<DateTime?>("ModifiedOnUtc")
+                                .HasColumnType("datetime2");
+
+                            b1.HasKey("UserId");
+
+                            b1.ToTable("AppUsers");
+
+                            b1.WithOwner()
+                                .HasForeignKey("UserId");
+                        });
+
+                    b.Navigation("Audit")
                         .IsRequired();
                 });
 #pragma warning restore 612, 618

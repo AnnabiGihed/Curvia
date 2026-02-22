@@ -16,23 +16,54 @@ namespace Curvia.Persistence.EntityFrameworkCore.Features.Routing.RoutePlans.Con
 /// </summary>
 internal sealed class RoutePlanConfiguration : IEntityTypeConfiguration<RoutePlan>
 {
+	#region IEntityTypeConfiguration<RoutePlan>
+	/// <summary>
+	/// Configures EF Core mapping for <see cref="RoutePlan"/>:
+	/// table name, primary key, and owned types flattening (waypoints, start/end, constraints,
+	/// scoring profile, and optional loop specification).
+	/// </summary>
+	/// <param name="builder">Entity type builder for <see cref="RoutePlan"/>.</param>
 	public void Configure(EntityTypeBuilder<RoutePlan> builder)
 	{
 		builder.ToTable(DbTableNames.RoutePlans);
 
-		#region Keys
-
+		#region Primary Key
 		builder.HasKey(x => x.Id);
 
 		builder.Property(x => x.Id)
 			.ValueGeneratedNever()
-			.HasConversion(
-				id => id.Value,
-				value => new RoutePlanId(value));
+			.HasConversion(id => id.Value, value => new RoutePlanId(value));
+		#endregion
 
+		#region Properties — Waypoints
+		builder.OwnsMany(x => x.Waypoints, waypoint =>
+		{
+			waypoint.ToTable(DbTableNames.RoutePlanWaypoints);
+
+			waypoint.WithOwner().HasForeignKey("RoutePlanId");
+
+			waypoint.Property<Guid>("Id")
+				.ValueGeneratedOnAdd();
+
+			waypoint.HasKey("Id");
+
+			waypoint.OwnsOne(w => w.Location, loc =>
+			{
+				loc.Property(p => p.Latitude).HasColumnName("Latitude").IsRequired();
+				loc.Property(p => p.Longitude).HasColumnName("Longitude").IsRequired();
+			});
+		});
 		#endregion
 
 		#region Properties — Start / End
+		builder.OwnsOne(x => x.End, end =>
+		{
+			end.Property(p => p.Latitude)
+				.HasColumnName("EndLatitude");
+
+			end.Property(p => p.Longitude)
+				.HasColumnName("EndLongitude");
+		});
 
 		builder.OwnsOne(x => x.Start, start =>
 		{
@@ -44,42 +75,9 @@ internal sealed class RoutePlanConfiguration : IEntityTypeConfiguration<RoutePla
 				.HasColumnName("StartLongitude")
 				.IsRequired();
 		});
-
-		builder.OwnsOne(x => x.End, end =>
-		{
-			end.Property(p => p.Latitude)
-				.HasColumnName("EndLatitude");
-
-			end.Property(p => p.Longitude)
-				.HasColumnName("EndLongitude");
-		});
-
-		#endregion
-
-		#region Properties — LoopSpec (optional)
-
-		builder.OwnsOne(x => x.LoopSpec, loop =>
-		{
-			loop.Property(l => l.IsLoop)
-				.HasColumnName("IsLoop")
-				.IsRequired();
-
-			// ReturnStrategy stored as int column
-			loop.Property(l => l.ReturnStrategy)
-				.HasColumnName("LoopReturnStrategy")
-				.HasConversion<int>();
-
-			loop.OwnsOne(p => p.TargetDistance, dist =>
-			{
-				dist.Property(d => d.Meters)
-					.HasColumnName("LoopTargetDistanceMeters");
-			});
-		});
-
 		#endregion
 
 		#region Properties — Constraints
-
 		builder.OwnsOne(x => x.Constraints, constraints =>
 		{
 			constraints.Property(p => p.MaxDetourRatio)
@@ -118,7 +116,6 @@ internal sealed class RoutePlanConfiguration : IEntityTypeConfiguration<RoutePla
 		#endregion
 
 		#region Properties — ScoringProfile
-
 		builder.OwnsOne(x => x.ScoringProfile, profile =>
 		{
 			profile.Property(p => p.FunFactor)
@@ -140,29 +137,26 @@ internal sealed class RoutePlanConfiguration : IEntityTypeConfiguration<RoutePla
 					.IsRequired();
 			});
 		});
-
 		#endregion
 
-		#region Properties — Waypoints
-
-		builder.OwnsMany(x => x.Waypoints, waypoint =>
+		#region Properties — LoopSpec (optional)
+		builder.OwnsOne(x => x.LoopSpec, loop =>
 		{
-			waypoint.ToTable(DbTableNames.RoutePlanWaypoints);
+			loop.Property(l => l.IsLoop)
+				.HasColumnName("IsLoop")
+				.IsRequired();
 
-			waypoint.WithOwner().HasForeignKey("RoutePlanId");
+			loop.Property(l => l.ReturnStrategy)
+				.HasColumnName("LoopReturnStrategy")
+				.HasConversion<int>();
 
-			waypoint.Property<Guid>("Id")
-				.ValueGeneratedOnAdd();
-
-			waypoint.HasKey("Id");
-
-			waypoint.OwnsOne(w => w.Location, loc =>
+			loop.OwnsOne(p => p.TargetDistance, dist =>
 			{
-				loc.Property(p => p.Latitude).HasColumnName("Latitude").IsRequired();
-				loc.Property(p => p.Longitude).HasColumnName("Longitude").IsRequired();
+				dist.Property(d => d.Meters)
+					.HasColumnName("LoopTargetDistanceMeters");
 			});
 		});
-
 		#endregion
 	}
+	#endregion
 }

@@ -12,32 +12,37 @@ namespace Curvia.Persistence.EntityFrameworkCore.Features.Users.Repositories;
 /// Date        : 02-2026
 /// Purpose     : EF Core implementation of <see cref="IUserRepository"/>.
 ///              Global query filter on User (IsDeleted = false) is applied automatically.
-///
-///              VO COMPARISONS:
-///              User.KeycloakId and User.Email are value objects mapped with HasConversion.
-///              EF Core translates VO equality in LINQ expressions by extracting .Value
-///              through the registered converter — the SQL stays a plain string comparison.
 /// </summary>
 internal sealed class UserRepository : BaseAsyncCommandRepository<User, UserId>, IUserRepository
 {
 	#region Constructor
-	public UserRepository(CurviaDbContext dbContext) : base(dbContext) {}
+	/// <summary>
+	/// Initializes a new instance of <see cref="UserRepository"/> backed by <see cref="CurviaDbContext"/>.
+	/// </summary>
+	/// <param name="dbContext">EF Core database context.</param>
+	public UserRepository(CurviaDbContext dbContext) : base(dbContext) { }
 	#endregion
 
 	#region IUserRepository
 	/// <inheritdoc/>
-	public async Task<User?> FindByKeycloakIdAsync(KeycloakId keycloakId, CancellationToken cancellationToken = default)
-		=> await DbContext.Set<User>()
-			.FirstOrDefaultAsync(u => u.KeycloakId == keycloakId, cancellationToken);
-
-	/// <inheritdoc/>
 	public async Task<User?> FindByIdAsync(UserId id, CancellationToken cancellationToken = default)
-		=> await DbContext.Set<User>()
+	{
+		return await DbContext.Set<User>()
 			.FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
+	}
 
 	/// <inheritdoc/>
 	public async Task<bool> EmailExistsAsync(UserEmail email, CancellationToken cancellationToken = default)
-		=> await DbContext.Set<User>()
+	{
+		return await DbContext.Set<User>()
 			.AnyAsync(u => u.Email == email, cancellationToken);
+	}
+
+	/// <inheritdoc/>
+	public async Task<User?> FindByKeycloakIdAsync(KeycloakId keycloakId, CancellationToken cancellationToken = default)
+	{
+		return await DbContext.Set<User>()
+			.FirstOrDefaultAsync(u => u.KeycloakId == keycloakId, cancellationToken);
+	}
 	#endregion
 }

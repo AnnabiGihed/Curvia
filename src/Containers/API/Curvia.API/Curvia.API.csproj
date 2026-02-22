@@ -7,14 +7,14 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.2" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.2">
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.3" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.3">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.4" />
-    <PackageReference Include="Templates.Core.Caching" Version="7.0.13" />
-    <PackageReference Include="Templates.Core.Containers.API" Version="7.0.13" />
+    <PackageReference Include="Templates.Core.Caching" Version="7.0.14" />
+    <PackageReference Include="Templates.Core.Containers.API" Version="7.0.14" />
   </ItemGroup>
 
   <ItemGroup>

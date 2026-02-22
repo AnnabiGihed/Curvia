@@ -9,68 +9,43 @@ using Curvia.Persistence.EntityFrameworkCore.Features.Routing.Routes.Configurati
 
 namespace Curvia.Persistence.EntityFrameworkCore.Features.Routing.Routes.Configurations.Aggregate;
 
+/// <summary>
+/// Author      : Gihed Annabi
+/// Date        : 02-2026
+/// Purpose     : EF Core configuration for <see cref="Route"/> aggregate.
+///              Maps the aggregate root, flattens owned value objects (Stats, BoundingBox),
+///              configures owned collection <see cref="RouteSegment"/> (including geometry JSON),
+///              and persists route geometry as JSON via <see cref="PolylineJsonConverter"/>.
+/// </summary>
 internal sealed class RouteConfiguration : IEntityTypeConfiguration<Route>
 {
+	#region IEntityTypeConfiguration<Route>
+	/// <summary>
+	/// Configures EF Core mapping for <see cref="Route"/>:
+	/// table name, keys, value object conversions, owned types flattening,
+	/// and owned collection mapping for segments.
+	/// </summary>
+	/// <param name="builder">Entity type builder for <see cref="Route"/>.</param>
 	public void Configure(EntityTypeBuilder<Route> builder)
 	{
 		builder.ToTable(DbTableNames.Routes);
 
 		#region Keys
-
 		builder.HasKey(x => x.Id);
 
 		builder.Property(x => x.Id)
 			.ValueGeneratedNever()
-			.HasConversion(
-				id => id.Value,
-				value => new RouteId(value));
-
-		#endregion
-
-		#region Properties - FK to RoutePlanId
-
-		builder.Property(x => x.RoutePlanId)
-			.HasConversion(
-				id => id.Value,
-				value => new RoutePlanId(value))
-			.IsRequired();
-
+			.HasConversion(id => id.Value, value => new RouteId(value));
 		#endregion
 
 		#region Properties - GraphVersionId
-
 		builder.Property(x => x.GraphVersionId)
-			.HasConversion(
-				vo => vo.Value,
-				value => GraphVersionId.Create(value).Value)
+			.HasConversion(vo => vo.Value, value => GraphVersionId.Create(value).Value)
 			.HasMaxLength(128)
 			.IsRequired();
-
-		#endregion
-
-		#region Properties - Geometry (Polyline as JSON)
-
-		builder.Property(x => x.Geometry)
-			.HasConversion(new PolylineJsonConverter())
-			.HasColumnType("nvarchar(max)")
-			.IsRequired();
-
-		#endregion
-
-		#region Properties - BoundingBox (flattened)
-
-		builder.OwnsOne(x => x.BoundingBox, bbox =>
-		{
-			bbox.Property(p => p.MinLatitude).HasColumnName("MinLatitude").IsRequired();
-			bbox.Property(p => p.MinLongitude).HasColumnName("MinLongitude").IsRequired();
-			bbox.Property(p => p.MaxLatitude).HasColumnName("MaxLatitude").IsRequired();
-			bbox.Property(p => p.MaxLongitude).HasColumnName("MaxLongitude").IsRequired();
-		});
-
 		#endregion
 
 		#region Properties - Stats (flattened)
-
 		builder.OwnsOne(x => x.Stats, stats =>
 		{
 			stats.OwnsOne(p => p.Distance, dist =>
@@ -93,7 +68,12 @@ internal sealed class RouteConfiguration : IEntityTypeConfiguration<Route>
 				f.Property(x => x.Value).HasColumnName("FunScore");
 			});
 		});
+		#endregion
 
+		#region Properties - FK to RoutePlanId
+		builder.Property(x => x.RoutePlanId)
+			.HasConversion(id => id.Value, value => new RoutePlanId(value))
+			.IsRequired();
 		#endregion
 
 		#region Segments (owned entity collection)
@@ -107,9 +87,7 @@ internal sealed class RouteConfiguration : IEntityTypeConfiguration<Route>
 				.HasForeignKey("RouteId");
 			s.Property(x => x.Id)
 				.ValueGeneratedNever()
-				.HasConversion(
-					id => id.Value,
-					value => new RouteSegmentId(value));
+				.HasConversion(id => id.Value, value => new RouteSegmentId(value));
 			s.HasKey(x => x.Id);
 
 			s.Property(x => x.Geometry)
@@ -138,5 +116,23 @@ internal sealed class RouteConfiguration : IEntityTypeConfiguration<Route>
 			});
 		});
 		#endregion
+
+		#region Properties - BoundingBox (flattened)
+		builder.OwnsOne(x => x.BoundingBox, bbox =>
+		{
+			bbox.Property(p => p.MinLatitude).HasColumnName("MinLatitude").IsRequired();
+			bbox.Property(p => p.MinLongitude).HasColumnName("MinLongitude").IsRequired();
+			bbox.Property(p => p.MaxLatitude).HasColumnName("MaxLatitude").IsRequired();
+			bbox.Property(p => p.MaxLongitude).HasColumnName("MaxLongitude").IsRequired();
+		});
+		#endregion
+
+		#region Properties - Geometry (Polyline as JSON)
+		builder.Property(x => x.Geometry)
+			.HasConversion(new PolylineJsonConverter())
+			.HasColumnType("nvarchar(max)")
+			.IsRequired();
+		#endregion
 	}
+	#endregion
 }
