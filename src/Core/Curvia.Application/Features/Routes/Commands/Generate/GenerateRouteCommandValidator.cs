@@ -15,7 +15,6 @@ internal sealed class GenerateRouteCommandValidator : AbstractValidator<Generate
 	public GenerateRouteCommandValidator()
 	{
 		#region Origin coordinates
-
 		RuleFor(x => x.StartLatitude)
 			.InclusiveBetween(-90, 90)
 			.WithMessage("StartLatitude must be between -90 and 90.");
@@ -23,19 +22,14 @@ internal sealed class GenerateRouteCommandValidator : AbstractValidator<Generate
 		RuleFor(x => x.StartLongitude)
 			.InclusiveBetween(-180, 180)
 			.WithMessage("StartLongitude must be between -180 and 180.");
-
 		#endregion
 
 		#region Trip mode — point-to-point or loop (exactly one)
-
-		// Both end coordinates must be provided together or not at all
 		RuleFor(x => x)
-			.Must(x => (x.EndLatitude.HasValue && x.EndLongitude.HasValue)
-					   || (!x.EndLatitude.HasValue && !x.EndLongitude.HasValue))
+			.Must(x => (x.EndLatitude.HasValue && x.EndLongitude.HasValue) || (!x.EndLatitude.HasValue && !x.EndLongitude.HasValue))
 			.WithName("EndCoordinates")
 			.WithMessage("EndLatitude and EndLongitude must both be set, or both omitted.");
 
-		// Exactly one of: (EndLatitude + EndLongitude) or LoopTargetDistanceMeters
 		RuleFor(x => x)
 			.Must(x =>
 			{
@@ -46,7 +40,6 @@ internal sealed class GenerateRouteCommandValidator : AbstractValidator<Generate
 			.WithName("TripMode")
 			.WithMessage("Exactly one of (EndLatitude + EndLongitude) or LoopTargetDistanceMeters must be set.");
 
-		// End coordinate bounds
 		When(x => x.EndLatitude.HasValue, () =>
 		{
 			RuleFor(x => x.EndLatitude!.Value)
@@ -58,7 +51,6 @@ internal sealed class GenerateRouteCommandValidator : AbstractValidator<Generate
 				.WithMessage("EndLongitude must be between -180 and 180.");
 		});
 
-		// Loop distance bounds
 		When(x => x.LoopTargetDistanceMeters.HasValue, () =>
 		{
 			RuleFor(x => x.LoopTargetDistanceMeters!.Value)
@@ -66,7 +58,6 @@ internal sealed class GenerateRouteCommandValidator : AbstractValidator<Generate
 				.WithMessage("LoopTargetDistanceMeters must be between 1,000 m and 500,000 m.");
 		});
 
-		// LoopReturnStrategy is only meaningful for loop mode
 		When(x => x.EndLatitude.HasValue && x.EndLongitude.HasValue, () =>
 		{
 			RuleFor(x => x.LoopReturnStrategy)
@@ -74,18 +65,15 @@ internal sealed class GenerateRouteCommandValidator : AbstractValidator<Generate
 				.WithMessage("LoopReturnStrategy is only applicable to loop routes, not point-to-point.");
 		});
 
-		// RoundTrip is only meaningful for point-to-point
 		When(x => x.LoopTargetDistanceMeters.HasValue, () =>
 		{
 			RuleFor(x => x.RoundTrip)
 				.Equal(false)
 				.WithMessage("RoundTrip is only applicable to point-to-point routes, not loop routes.");
 		});
-
 		#endregion
 
 		#region Preset and custom weights
-
 		RuleFor(x => x.Preset)
 			.IsInEnum()
 			.WithMessage("Preset must be a valid RoutePreset value.");
@@ -112,11 +100,9 @@ internal sealed class GenerateRouteCommandValidator : AbstractValidator<Generate
 				.InclusiveBetween(0, 1).When(x => x.SceneryWeight.HasValue)
 				.WithMessage("SceneryWeight must be between 0 and 1.");
 		});
-
 		#endregion
 
 		#region Constraints
-
 		RuleFor(x => x.MaxDetourRatio)
 			.InclusiveBetween(1.0, 5.0)
 			.WithMessage("MaxDetourRatio must be between 1.0 and 5.0.");
@@ -138,11 +124,9 @@ internal sealed class GenerateRouteCommandValidator : AbstractValidator<Generate
 		RuleFor(x => x.UrbanTolerance)
 			.IsInEnum()
 			.WithMessage("UrbanTolerance must be a valid value (0=None, 1=PassThrough, 2=Allowed).");
-
 		#endregion
 
 		#region Waypoints
-
 		When(x => x.Waypoints is { Count: > 0 }, () =>
 		{
 			RuleFor(x => x.Waypoints)
@@ -161,7 +145,6 @@ internal sealed class GenerateRouteCommandValidator : AbstractValidator<Generate
 						.WithMessage("Waypoint longitude must be between -180 and 180.");
 				});
 		});
-
 		#endregion
 	}
 }

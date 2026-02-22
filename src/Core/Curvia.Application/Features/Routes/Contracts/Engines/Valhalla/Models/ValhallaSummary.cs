@@ -5,10 +5,10 @@ namespace Curvia.Application.Features.Routes.Contracts.Engines.Valhalla.Models;
 public sealed class ValhallaSummary
 {
 	[JsonPropertyName("time")]
-	public double Time { get; set; } // seconds
+	public double Time { get; set; }
 
 	[JsonPropertyName("length")]
-	public double Length { get; set; } // km (because units=kilometers)
+	public double Length { get; set; }
 
 	[JsonPropertyName("min_lat")]
 	public double MinLat { get; set; }
@@ -22,15 +22,14 @@ public sealed class ValhallaSummary
 	[JsonPropertyName("max_lon")]
 	public double MaxLon { get; set; }
 
-	// optional flags (present in your JSON)
-	[JsonPropertyName("has_highway")]
-	public bool HasHighway { get; set; }
-
 	[JsonPropertyName("has_toll")]
 	public bool HasToll { get; set; }
 
 	[JsonPropertyName("has_ferry")]
 	public bool HasFerry { get; set; }
+
+	[JsonPropertyName("has_highway")]
+	public bool HasHighway { get; set; }
 
 	[JsonPropertyName("has_time_restrictions")]
 	public bool HasTimeRestrictions { get; set; }

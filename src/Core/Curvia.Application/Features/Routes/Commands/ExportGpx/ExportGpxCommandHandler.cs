@@ -20,34 +20,27 @@ namespace Curvia.Application.Features.Routes.Commands.ExportGpx;
 /// </summary>
 internal sealed class ExportGpxCommandHandler : ICommandHandler<ExportGpxCommand, ExportGpxResponse>
 {
+	#region Fields
 	private static readonly XNamespace GpxNs = "http://www.topografix.com/GPX/1/1";
 	private static readonly XNamespace XsiNs = "http://www.w3.org/2001/XMLSchema-instance";
+	#endregion
 
+	#region ICommandHandler
 	/// <inheritdoc/>
 	public Task<Result<ExportGpxResponse>> Handle(ExportGpxCommand command, CancellationToken cancellationToken)
 	{
 		#region Validate outbound polyline
 		if (command.Polyline is null || command.Polyline.Count < 2)
-		{
-			return Task.FromResult(Result.Failure<ExportGpxResponse>(
-				new Error("Export.Gpx.InvalidPolyline",
-					"The route polyline must contain at least 2 points.")));
-		}
+			return Task.FromResult(Result.Failure<ExportGpxResponse>(new Error("Export.Gpx.InvalidPolyline", "The route polyline must contain at least 2 points.")));
 
 		foreach (var pt in command.Polyline)
-		{
 			if (pt.Length < 2)
-			{
-				return Task.FromResult(Result.Failure<ExportGpxResponse>(
-					new Error("Export.Gpx.MalformedPoint",
-						"Each polyline point must be a [latitude, longitude] pair.")));
-			}
-		}
+				return Task.FromResult(Result.Failure<ExportGpxResponse>(new Error("Export.Gpx.MalformedPoint", "Each polyline point must be a [latitude, longitude] pair.")));
 		#endregion
 
-		var routeName = string.IsNullOrWhiteSpace(command.RouteName) ? "Curvia Route" : command.RouteName.Trim();
 		var exportedAt = DateTime.UtcNow;
 		var hasReturn = command.ReturnLeg?.Polyline is { Count: >= 2 };
+		var routeName = string.IsNullOrWhiteSpace(command.RouteName) ? "Curvia Route" : command.RouteName.Trim();
 
 		#region Build GPX document
 		var gpxDoc = new XDocument(
@@ -90,13 +83,28 @@ internal sealed class ExportGpxCommandHandler : ICommandHandler<ExportGpxCommand
 
 		return Task.FromResult(Result.Success(new ExportGpxResponse
 		{
-			GpxContent = gpxContent,
-			FileName = fileName
+			FileName = fileName,
+			GpxContent = gpxContent
 		}));
 	}
+	#endregion
 
 	#region Private — GPX element builders
+	private static string BuildFileName(string routeName, DateTime exportedAt)
+	{
+		var safeName = new string(
+			routeName.ToLowerInvariant()
+				.Replace(' ', '-')
+				.Replace('/', '-')
+				.Replace('\\', '-')
+				.Where(c => char.IsLetterOrDigit(c) || c == '-' || c == '_')
+				.ToArray());
 
+		if (string.IsNullOrEmpty(safeName))
+			safeName = "curvia-route";
+
+		return $"{safeName}-{exportedAt:yyyy-MM-dd}.gpx";
+	}
 	private static XElement BuildMetadata(string routeName, ExportGpxCommand cmd, bool hasReturn, DateTime exportedAt)
 	{
 		var distKm = cmd.DistanceMeters / 1000.0;
@@ -116,15 +124,7 @@ internal sealed class ExportGpxCommandHandler : ICommandHandler<ExportGpxCommand
 			new XElement(GpxNs + "time", exportedAt.ToString("yyyy-MM-ddTHH:mm:ssZ"))
 		);
 	}
-
-	private static XElement BuildTrack(
-		string name,
-		IReadOnlyList<double[]> polyline,
-		double distanceMeters,
-		int durationMinutes,
-		int funRating,
-		double funScore,
-		bool isReturnLeg)
+	private static XElement BuildTrack(string name, IReadOnlyList<double[]> polyline, double distanceMeters, int durationMinutes, int funRating, double funScore, bool isReturnLeg)
 	{
 		var trackName = isReturnLeg ? $"{name} — Return" : name;
 		var desc = $"{distanceMeters / 1000.0:F1} km · {durationMinutes} min · {funRating}★ (score {funScore:F2})";
@@ -143,22 +143,5 @@ internal sealed class ExportGpxCommandHandler : ICommandHandler<ExportGpxCommand
 			trackSeg
 		);
 	}
-
-	private static string BuildFileName(string routeName, DateTime exportedAt)
-	{
-		var safeName = new string(
-			routeName.ToLowerInvariant()
-				.Replace(' ', '-')
-				.Replace('/', '-')
-				.Replace('\\', '-')
-				.Where(c => char.IsLetterOrDigit(c) || c == '-' || c == '_')
-				.ToArray());
-
-		if (string.IsNullOrEmpty(safeName))
-			safeName = "curvia-route";
-
-		return $"{safeName}-{exportedAt:yyyy-MM-dd}.gpx";
-	}
-
 	#endregion
 }

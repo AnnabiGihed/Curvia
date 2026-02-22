@@ -18,4 +18,9 @@ internal static class DbTableNames
 	public const string SavedRoutes = nameof(SavedRoutes);
 	public const string RouteReviews = nameof(RouteReviews);
 	#endregion
+
+	#region Motorcycle Catalog
+	public const string MotorcycleMakers = nameof(MotorcycleMakers);
+	public const string MotorcycleModels = nameof(MotorcycleModels);
+	#endregion
 }

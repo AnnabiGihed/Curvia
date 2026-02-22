@@ -1,6 +1,8 @@
-﻿using Curvia.Domain.Features.Motorcycles.Repositories;
+﻿using Curvia.Domain.Features.MotorcycleCatalog.Repositories;
+using Curvia.Domain.Features.Motorcycles.Repositories;
 using Curvia.Domain.Features.SavedRoutes.Repositories;
 using Curvia.Domain.Features.Users.Repositories;
+using Curvia.Persistence.EntityFrameworkCore.Features.MotorcycleCatalog.Repositories;
 using Curvia.Persistence.EntityFrameworkCore.Features.Motorcycles.Repositories;
 using Curvia.Persistence.EntityFrameworkCore.Features.SavedRoutes.Repositories;
 using Curvia.Persistence.EntityFrameworkCore.Features.Users.Repositories;
@@ -33,10 +35,18 @@ public sealed class PersistanceServiceInstaller : BaseServiceInstaller, IService
 		services.AddScoped(typeof(ITransactionManager<CurviaDbContext>), typeof(TransactionManager<CurviaDbContext>));
 		#endregion
 
-		#region Users & Saved Routes
+		#region Users & Motorcycles
 		services.AddScoped<IUserRepository, UserRepository>();
 		services.AddScoped<IMotorcycleRepository, MotorcycleRepository>();
+		#endregion
+
+		#region Saved Routes
 		services.AddScoped<ISavedRouteRepository, SavedRouteRepository>();
+		#endregion
+
+		#region Motorcycle Catalog
+		services.AddScoped<IMotorcycleMakerRepository, MotorcycleMakerRepository>();
+		services.AddScoped<IMotorcycleCatalogModelRepository, MotorcycleCatalogModelRepository>();
 		#endregion
 	}
 }

@@ -1,6 +1,4 @@
-﻿using Curvia.Application.Features.Routes.Commands.ExportGpx;
-
-namespace Curvia.Application.Features.Routes.Commands.ExportGpx.Responses;
+﻿namespace Curvia.Application.Features.Routes.Commands.ExportGpx.Responses;
 
 /// <summary>
 /// Author      : Gihed Annabi

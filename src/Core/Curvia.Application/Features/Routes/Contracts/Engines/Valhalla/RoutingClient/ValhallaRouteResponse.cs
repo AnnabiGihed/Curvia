@@ -1,5 +1,5 @@
-﻿using Curvia.Application.Features.Routes.Contracts.Engines.Valhalla.Models;
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
+using Curvia.Application.Features.Routes.Contracts.Engines.Valhalla.Models;
 
 namespace Curvia.Application.Features.Routes.Contracts.Engines.Valhalla.RoutingClient;
 

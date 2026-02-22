@@ -1,20 +1,31 @@
-﻿using Templates.Core.Caching.Extensions;
+﻿using System.Security.Claims;
+using Templates.Core.Caching.Extensions;
 using Templates.Core.Authentication.Extensions;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 
 namespace Curvia.API.ServiceInstallers;
 
+/// <summary>
+/// Author      : Gihed Annabi
+/// Date        : 02-2026
+/// Purpose     : Wires Keycloak JWT + Redis token caching + Swagger OAuth into DI.
+/// </summary>
 public static class AddKeycloakAuthenticationServiceInstaller
 {
 	public static void AddKeycloakAuthentication(this IServiceCollection services, IConfiguration configuration)
 	{
-		#region 1. Keycloak + Redis (replaces AddKeycloakBackend alone)
-		//   - Validates JWT, flattens roles, provides ICurrentUser
-		//   - Caches parsed claims in Redis (fast path on subsequent requests)
-		//   - Enables token revocation blacklist (real-time logout)
+		// 1. Full Keycloak + Redis stack.
+		//    Internally calls AddAuthentication(Bearer) and AddAuthorization() — do NOT call again.
 		services.AddKeycloakRedisCache(configuration);
-		#endregion
 
-		#region 2. Swagger with Keycloak OAuth2 PKCE
+		// 2. Fix the RoleClaimType mismatch introduced by AddKeycloakRedisCache.
+		//    PostConfigure runs after all Configure calls, so this wins regardless of order.
+		services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
+		{
+			options.TokenValidationParameters.RoleClaimType = ClaimTypes.Role;
+		});
+
+		// 3. Swagger with Keycloak OAuth2 PKCE.
 		services.AddEndpointsApiExplorer();
 		services.AddSwaggerGen(c =>
 		{
@@ -22,9 +33,5 @@ public static class AddKeycloakAuthenticationServiceInstaller
 			c.AddKeycloakSecurityDefinition(services.BuildServiceProvider());
 			c.AddKeycloakSecurityRequirement();
 		});
-		#endregion
-
-		services.AddAuthentication();
-		services.AddAuthorization();
 	}
 }
