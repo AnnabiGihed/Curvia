@@ -9,14 +9,34 @@ namespace Curvia.Application.Features.MotorcycleCatalogs.Commands.SuggestMaker;
 
 internal sealed class SuggestMakerCommandHandler : ICommandHandler<SuggestMakerCommand, MakerDto>
 {
+	#region Fields
 	private readonly IMotorcycleMakerRepository _makers;
+	#endregion
 
+	#region Constructor
+	/// <summary>
+	/// Initializes a new instance of <see cref="SuggestMakerCommandHandler"/>.
+	/// </summary>
+	/// <param name="makers">Repository used to validate and persist maker suggestions.</param>
 	public SuggestMakerCommandHandler(IMotorcycleMakerRepository makers)
-		=> _makers = makers;
+	{
+		_makers = makers;
+	}
+	#endregion
 
+	#region ICommandHandler
+	/// <summary>
+	/// Suggests a new motorcycle maker for moderation.
+	/// Rejects if the maker already exists in the official catalog.
+	/// </summary>
+	/// <param name="cmd">Command containing the suggested maker name and suggesting user id.</param>
+	/// <param name="ct">Cancellation token.</param>
+	/// <returns>
+	/// Success with a <see cref="MakerDto"/> when the suggestion is stored; otherwise a failure result
+	/// (Conflict when already official, or domain failure when validation fails).
+	/// </returns>
 	public async Task<Result<MakerDto>> Handle(SuggestMakerCommand cmd, CancellationToken ct)
 	{
-		// Guard: don't allow duplicate suggestions of already-official makers
 		if (await _makers.OfficialNameExistsAsync(cmd.Name, ct))
 			return Result.Failure<MakerDto>(new Error("MotorcycleMaker.AlreadyOfficial", $"A maker named '{cmd.Name}' is already in the official catalog. Please select it from the list."), ResultExceptionType.Conflict);
 
@@ -26,7 +46,7 @@ internal sealed class SuggestMakerCommandHandler : ICommandHandler<SuggestMakerC
 
 		await _makers.AddAsync(result.Value, ct);
 
-		// Cache is NOT invalidated here — pending makers are not in the public cache.
 		return Result.Success(new MakerDto(result.Value.Id.Value, result.Value.Name));
 	}
+	#endregion
 }

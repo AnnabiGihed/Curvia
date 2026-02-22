@@ -6,23 +6,45 @@ using Templates.Core.Application.Abstractions.Messaging.Commands;
 
 namespace Curvia.Application.Features.MotorcycleCatalogs.Commands.ApproveMaker;
 
+/// <summary>
+/// Handles <see cref="ApproveMakerCommand"/> by approving a pending motorcycle maker
+/// and invalidating the official makers cache.
+/// </summary>
 internal sealed class ApproveMakerCommandHandler : ICommandHandler<ApproveMakerCommand>
 {
-	private readonly IMotorcycleMakerRepository _makers;
+	#region Fields
 	private readonly ICacheService _cache;
+	private readonly IMotorcycleMakerRepository _makers;
+	#endregion
 
+	#region Constructor
+	/// <summary>
+	/// Initializes a new instance of <see cref="ApproveMakerCommandHandler"/>.
+	/// </summary>
+	/// <param name="makers">Repository used to load and persist motorcycle makers.</param>
+	/// <param name="cache">Cache service used to invalidate catalog caches.</param>
 	public ApproveMakerCommandHandler(IMotorcycleMakerRepository makers, ICacheService cache)
 	{
-		_makers = makers;
 		_cache = cache;
+		_makers = makers;
 	}
+	#endregion
 
+	#region ICommandHandler
+	/// <summary>
+	/// Approves the specified maker and clears the official makers cache key.
+	/// </summary>
+	/// <param name="cmd">Command containing maker id and actor information.</param>
+	/// <param name="ct">Cancellation token.</param>
+	/// <returns>
+	/// Success when the maker is approved and persisted; otherwise a failure result
+	/// (NotFound when maker does not exist, or domain failure when approval is invalid).
+	/// </returns>
 	public async Task<Result> Handle(ApproveMakerCommand cmd, CancellationToken ct)
 	{
 		var maker = await _makers.FindByIdAsync(new MotorcycleMakerId(cmd.MakerId), ct);
 		if (maker is null)
-			return Result.Failure(new Error(
-				"MotorcycleMaker.NotFound", "Maker not found."), ResultExceptionType.NotFound);
+			return Result.Failure(new Error("MotorcycleMaker.NotFound", "Maker not found."), ResultExceptionType.NotFound);
 
 		var approveResult = maker.Approve(cmd.ActorId);
 		if (approveResult.IsFailure)
@@ -32,4 +54,5 @@ internal sealed class ApproveMakerCommandHandler : ICommandHandler<ApproveMakerC
 		await _cache.RemoveAsync("catalog:makers:official", ct);
 		return Result.Success();
 	}
+	#endregion
 }

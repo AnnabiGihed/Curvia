@@ -116,8 +116,7 @@ public sealed class MotorcycleMaker : AggregateRoot<MotorcycleMakerId>
 	public Result Approve(string actorId)
 	{
 		if (Status == CatalogItemStatus.Official)
-			return Result.Failure(
-				new Error("MotorcycleMaker.AlreadyOfficial", "This maker is already approved."));
+			return Result.Failure(new Error("MotorcycleMaker.AlreadyOfficial", "This maker is already approved."));
 
 		Status = CatalogItemStatus.Official;
 		Touch(DateTime.UtcNow, actorId);
