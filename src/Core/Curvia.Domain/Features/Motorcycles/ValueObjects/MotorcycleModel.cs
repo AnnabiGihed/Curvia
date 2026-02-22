@@ -17,11 +17,28 @@ public sealed class MotorcycleModel : CSharpFunctionalExtensions.ValueObject<Mot
 	#endregion
 
 	#region Constructors
-	private MotorcycleModel() => Value = default!;
-	private MotorcycleModel(string value) => Value = value;
+	private MotorcycleModel()
+	{
+		Value = default!;
+	}
+
+	/// <summary>
+	/// Initializes a new <see cref="MotorcycleModel"/> value object.
+	/// </summary>
+	/// <param name="value">Validated model name.</param>
+	private MotorcycleModel(string value)
+	{
+		Value = value;
+	}
 	#endregion
 
 	#region Factory
+	/// <summary>
+	/// Creates a new <see cref="MotorcycleModel"/> after enforcing domain rules
+	/// (non-empty, max 150 characters, trimmed).
+	/// </summary>
+	/// <param name="value">Raw model name string.</param>
+	/// <returns>Successful result containing <see cref="MotorcycleModel"/> or failure with domain error.</returns>
 	public static Result<MotorcycleModel> Create(string value)
 	{
 		if (string.IsNullOrWhiteSpace(value))
@@ -33,19 +50,32 @@ public sealed class MotorcycleModel : CSharpFunctionalExtensions.ValueObject<Mot
 		return Result.Success(new MotorcycleModel(value.Trim()));
 	}
 
-	/// <summary>For EF Core materialization only. Bypasses domain validation — DB values are assumed valid.</summary>
-	public static MotorcycleModel FromPersistence(string value) => new(value);
+	/// <summary>
+	/// For EF Core materialization only.
+	/// Bypasses domain validation — DB values are assumed valid.
+	/// </summary>
+	public static MotorcycleModel FromPersistence(string value)
+	{
+		return new(value);
+	}
 	#endregion
 
 	#region Equality
 	protected override bool EqualsCore(MotorcycleModel other)
-		=> string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+	{
+		return string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+	}
 
 	protected override int GetHashCodeCore()
-		=> StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+	{
+		return StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+	}
 	#endregion
 
 	#region Overrides
-	public override string ToString() => Value;
+	public override string ToString()
+	{
+		return Value;
+	}
 	#endregion
 }

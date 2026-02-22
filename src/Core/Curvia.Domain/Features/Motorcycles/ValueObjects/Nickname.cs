@@ -17,11 +17,28 @@ public sealed class Nickname : CSharpFunctionalExtensions.ValueObject<Nickname>
 	#endregion
 
 	#region Constructors
-	private Nickname() => Value = default!;
-	private Nickname(string value) => Value = value;
+	private Nickname()
+	{
+		Value = default!;
+	}
+
+	/// <summary>
+	/// Initializes a new <see cref="Nickname"/> value object.
+	/// </summary>
+	/// <param name="value">Validated nickname value.</param>
+	private Nickname(string value)
+	{
+		Value = value;
+	}
 	#endregion
 
 	#region Factory
+	/// <summary>
+	/// Creates a new <see cref="Nickname"/> after enforcing domain rules
+	/// (non-empty, max 100 characters, trimmed).
+	/// </summary>
+	/// <param name="value">Raw nickname string.</param>
+	/// <returns>Successful result containing <see cref="Nickname"/> or failure with domain error.</returns>
 	public static Result<Nickname> Create(string value)
 	{
 		if (string.IsNullOrWhiteSpace(value))
@@ -33,19 +50,32 @@ public sealed class Nickname : CSharpFunctionalExtensions.ValueObject<Nickname>
 		return Result.Success(new Nickname(value.Trim()));
 	}
 
-	/// <summary>For EF Core materialization only. Bypasses domain validation — DB values are assumed valid.</summary>
-	public static Nickname FromPersistence(string value) => new(value);
+	/// <summary>
+	/// For EF Core materialization only.
+	/// Bypasses domain validation — DB values are assumed valid.
+	/// </summary>
+	public static Nickname FromPersistence(string value)
+	{
+		return new(value);
+	}
 	#endregion
 
 	#region Equality
-	protected override bool EqualsCore(Nickname other)
-		=> string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
 	protected override int GetHashCodeCore()
-		=> StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+	{
+		return StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+	}
+
+	protected override bool EqualsCore(Nickname other)
+	{
+		return string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+	}
 	#endregion
 
 	#region Overrides
-	public override string ToString() => Value;
+	public override string ToString()
+	{
+		return Value;
+	}
 	#endregion
 }

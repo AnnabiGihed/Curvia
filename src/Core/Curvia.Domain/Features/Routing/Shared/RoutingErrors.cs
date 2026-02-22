@@ -102,7 +102,6 @@ internal static class RoutingErrors
 	#endregion
 
 	#region BoundingBox
-
 	public static Error BoundingBoxInvalid()
 		=> new(
 			"Routing.BoundingBox.Invalid",
@@ -121,16 +120,13 @@ internal static class RoutingErrors
 	#endregion
 
 	#region RoutingConstraints
-
 	public static Error InvalidDetourRatio(double value)
 		=> new(
 			"Routing.Constraints.InvalidDetourRatio",
 			string.Format(CultureInfo.InvariantCulture, Resource.Routing_Constraints_InvalidDetourRatio, value));
-
 	#endregion
 
 	#region GraphVersionId
-
 	public static Error GraphVersionIdRequired()
 		=> new(
 			"Routing.GraphVersionId.Required",
@@ -145,6 +141,5 @@ internal static class RoutingErrors
 		=> new(
 			"Routing.GraphVersionId.InvalidChars",
 			Resource.Routing_GraphVersionId_InvalidChars);
-
 	#endregion
 }
