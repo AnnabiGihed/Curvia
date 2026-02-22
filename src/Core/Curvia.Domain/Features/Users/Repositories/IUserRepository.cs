@@ -14,13 +14,6 @@ namespace Curvia.Domain.Features.Users.Repositories;
 public interface IUserRepository : IAsyncCommandRepository<User, UserId>
 {
 	/// <summary>
-	/// Finds a user by their Keycloak "sub" claim.
-	/// Returns null if no user with that KeycloakId exists.
-	/// Used by the authentication middleware to resolve the app user from a JWT token.
-	/// </summary>
-	Task<User?> FindByKeycloakIdAsync(KeycloakId keycloakId, CancellationToken cancellationToken = default);
-
-	/// <summary>
 	/// Finds a user by their application-level ID.
 	/// Returns null if not found or soft-deleted.
 	/// </summary>
@@ -31,4 +24,11 @@ public interface IUserRepository : IAsyncCommandRepository<User, UserId>
 	/// Used for uniqueness validation during manual user creation.
 	/// </summary>
 	Task<bool> EmailExistsAsync(UserEmail email, CancellationToken cancellationToken = default);
+
+	/// <summary>
+	/// Finds a user by their Keycloak "sub" claim.
+	/// Returns null if no user with that KeycloakId exists.
+	/// Used by the authentication middleware to resolve the app user from a JWT token.
+	/// </summary>
+	Task<User?> FindByKeycloakIdAsync(KeycloakId keycloakId, CancellationToken cancellationToken = default);
 }

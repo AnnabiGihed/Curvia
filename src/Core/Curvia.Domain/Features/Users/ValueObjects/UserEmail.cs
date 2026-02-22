@@ -12,15 +12,40 @@ namespace Curvia.Domain.Features.Users.ValueObjects;
 public sealed class UserEmail : CSharpFunctionalExtensions.ValueObject<UserEmail>
 {
 	#region Properties
+	/// <summary>
+	/// Gets the normalized (trimmed + lowercased) email value.
+	/// </summary>
 	public string Value { get; }
 	#endregion
 
 	#region Constructors
-	private UserEmail() => Value = default!;
-	private UserEmail(string value) => Value = value;
+	/// <summary>
+	/// Parameterless constructor required by some ORMs.
+	/// </summary>
+	private UserEmail()
+	{
+		Value = default!;
+	}
+
+	/// <summary>
+	/// Creates a new <see cref="UserEmail"/> with a normalized value.
+	/// </summary>
+	/// <param name="value">Normalized email value.</param>
+	private UserEmail(string value)
+	{
+		Value = value;
+	}
 	#endregion
 
 	#region Factory
+	/// <summary>
+	/// Creates a new <see cref="UserEmail"/> after validating:
+	/// - Non-empty input
+	/// - Maximum length of 320 characters (RFC 5321)
+	/// The stored value is trimmed and converted to lowercase invariant.
+	/// </summary>
+	/// <param name="value">Raw email input.</param>
+	/// <returns>A successful result containing <see cref="UserEmail"/>, or a failure with domain error.</returns>
 	public static Result<UserEmail> Create(string value)
 	{
 		if (string.IsNullOrWhiteSpace(value))
@@ -32,19 +57,46 @@ public sealed class UserEmail : CSharpFunctionalExtensions.ValueObject<UserEmail
 		return Result.Success(new UserEmail(value.Trim().ToLowerInvariant()));
 	}
 
-	/// <summary>For EF Core materialization only. Bypasses domain validation — DB values are assumed valid.</summary>
-	public static UserEmail FromPersistence(string value) => new(value);
+	/// <summary>
+	/// Rehydrates a <see cref="UserEmail"/> from a persisted value without re-validation.
+	/// Intended for EF Core materialization.
+	/// </summary>
+	/// <param name="value">Persisted email value.</param>
+	/// <returns><see cref="UserEmail"/> instance.</returns>
+	public static UserEmail FromPersistence(string value)
+	{
+		return new(value);
+	}
 	#endregion
 
 	#region Equality
-	protected override bool EqualsCore(UserEmail other)
-		=> string.Equals(Value, other.Value, StringComparison.Ordinal);
-
+	/// <summary>
+	/// Computes hash code using ordinal string comparison.
+	/// </summary>
 	protected override int GetHashCodeCore()
-		=> StringComparer.Ordinal.GetHashCode(Value);
+	{
+		return StringComparer.Ordinal.GetHashCode(Value);
+	}
+
+	/// <summary>
+	/// Compares two <see cref="UserEmail"/> instances using ordinal equality on the normalized value.
+	/// </summary>
+	/// <param name="other">Other email instance.</param>
+	/// <returns>True if values are equal; otherwise false.</returns>
+	protected override bool EqualsCore(UserEmail other)
+	{
+		return string.Equals(Value, other.Value, StringComparison.Ordinal);
+	}
 	#endregion
 
 	#region Overrides
-	public override string ToString() => Value;
+	/// <summary>
+	/// Returns the normalized email string.
+	/// </summary>
+	/// <returns>Email as string.</returns>
+	public override string ToString()
+	{
+		return Value;
+	}
 	#endregion
 }

@@ -13,15 +13,40 @@ namespace Curvia.Domain.Features.Users.ValueObjects;
 public sealed class Locale : CSharpFunctionalExtensions.ValueObject<Locale>
 {
 	#region Properties
+	/// <summary>
+	/// Gets the locale tag value (trimmed, case preserved).
+	/// </summary>
 	public string Value { get; }
 	#endregion
 
 	#region Constructors
-	private Locale() => Value = default!;
-	private Locale(string value) => Value = value;
+	/// <summary>
+	/// Parameterless constructor required by some ORMs.
+	/// </summary>
+	private Locale()
+	{
+		Value = default!;
+	}
+
+	/// <summary>
+	/// Creates a new <see cref="Locale"/> instance.
+	/// </summary>
+	/// <param name="value">Locale tag value.</param>
+	private Locale(string value)
+	{
+		Value = value;
+	}
 	#endregion
 
 	#region Factory
+	/// <summary>
+	/// Creates a new <see cref="Locale"/> after validating:
+	/// - Non-empty input
+	/// - Maximum length of 10 characters
+	/// No strict BCP-47 format validation is enforced at this level.
+	/// </summary>
+	/// <param name="value">Raw locale input.</param>
+	/// <returns>A successful result containing <see cref="Locale"/>, or a failure with domain error.</returns>
 	public static Result<Locale> Create(string value)
 	{
 		if (string.IsNullOrWhiteSpace(value))
@@ -33,19 +58,43 @@ public sealed class Locale : CSharpFunctionalExtensions.ValueObject<Locale>
 		return Result.Success(new Locale(value.Trim()));
 	}
 
-	/// <summary>For EF Core materialization only. Bypasses domain validation — DB values are assumed valid.</summary>
+	/// <summary>
+	/// Rehydrates a <see cref="Locale"/> from a persisted value without re-validation.
+	/// Intended for EF Core materialization.
+	/// </summary>
+	/// <param name="value">Persisted locale value.</param>
+	/// <returns><see cref="Locale"/> instance.</returns>
 	public static Locale FromPersistence(string value) => new(value);
 	#endregion
 
 	#region Equality
-	protected override bool EqualsCore(Locale other)
-		=> string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
+	/// <summary>
+	/// Computes hash code using case-insensitive ordinal comparison.
+	/// </summary>
 	protected override int GetHashCodeCore()
-		=> StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+	{
+		return StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+	}
+
+	/// <summary>
+	/// Compares two <see cref="Locale"/> instances using case-insensitive ordinal comparison.
+	/// </summary>
+	/// <param name="other">Other locale instance.</param>
+	/// <returns>True if values are equal (case-insensitive); otherwise false.</returns>
+	protected override bool EqualsCore(Locale other)
+	{
+		return string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+	}
 	#endregion
 
 	#region Overrides
-	public override string ToString() => Value;
+	/// <summary>
+	/// Returns the locale tag as string.
+	/// </summary>
+	/// <returns>Locale string.</returns>
+	public override string ToString()
+	{
+		return Value;
+	}
 	#endregion
 }
