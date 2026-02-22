@@ -2,6 +2,13 @@
 
 namespace Curvia.Application.Features.SavedRoutes.Commands.Review;
 
+/// <summary>
+/// Author      : Gihed Annabi
+/// Date        : 02-2026
+/// Purpose     : Fast-fail validation for <see cref="SubmitReviewCommand"/>.
+///              Mirrors the constraints defined in ReviewRating and ReviewComment VOs.
+///              FluentValidation runs before the handler — invalid commands never reach the DB.
+/// </summary>
 internal sealed class SubmitReviewCommandValidator : AbstractValidator<SubmitReviewCommand>
 {
 	public SubmitReviewCommandValidator()

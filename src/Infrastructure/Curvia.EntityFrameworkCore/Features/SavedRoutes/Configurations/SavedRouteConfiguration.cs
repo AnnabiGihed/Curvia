@@ -1,38 +1,39 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Curvia.Domain.Features.Routing.Routes.Aggregate;
 using Curvia.Domain.Features.SavedRoutes.Aggregate;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Curvia.Domain.Features.SavedRoutes.ValueObjects;
 using Curvia.Domain.Features.Users.Aggregate;
+using Curvia.Persistence.EntityFrameworkCore.Constants;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Curvia.Persistence.EntityFrameworkCore.Features.SavedRoutes.Configurations;
 
 /// <summary>
 /// Author      : Gihed Annabi
 /// Date        : 02-2026
-/// Purpose     : EF Core entity type configuration for the <see cref="SavedRoute"/> aggregate.
+/// Purpose     : EF Core configuration for <see cref="SavedRoute"/> aggregate.
 ///
 ///              KEY DESIGN DECISIONS:
 ///              ─────────────────────────────────────────────────────────────────
-///              1. RouteId is a plain Guid column — no EF navigation to Route aggregate.
-///                 Cross-aggregate references must be by ID only (DDD rule).
-///                 Route geometry is queried separately when the UI needs it.
+///              1. RouteId is typed as the domain's RouteId strongly-typed ID (not raw Guid).
+///                 Cross-aggregate reference: no EF navigation to Route aggregate.
+///                 Maps to a plain uniqueidentifier column via HasConversion.
 ///
-///              2. UserId IS a navigation FK to AppUsers — SavedRoute is within the
-///                 Users bounded context boundary (it belongs to a user).
-///                 The FK ensures referential integrity at the DB level.
+///              2. Name and Notes are value objects mapped with HasConversion (single column each).
 ///
-///              3. RouteReview is an OWNED TYPE mapped into the same SavedRoutes table.
-///                 All review columns are nullable because review is optional.
-///                 This avoids a separate ReviewId PK and keeps reads to one table.
+///              3. Reviews are an owned entity collection mapped to the separate RouteReviews
+///                 table via OwnsMany. The review mapping is delegated to RouteReviewConfiguration.
+///                 Loading the reviews collection requires .Include(x => x.Reviews) in queries.
 ///
 ///              4. Unique index on (UserId, RouteId) prevents saving the same route twice.
 ///
-///              5. Global query filter excludes soft-deleted rows from all queries.
+///              5. Global query filter excludes soft-deleted saved routes.
 /// </summary>
 internal sealed class SavedRouteConfiguration : IEntityTypeConfiguration<SavedRoute>
 {
 	public void Configure(EntityTypeBuilder<SavedRoute> builder)
 	{
-		builder.ToTable("SavedRoutes");
+		builder.ToTable(DbTableNames.SavedRoutes);
 
 		#region Primary key
 
@@ -46,7 +47,7 @@ internal sealed class SavedRouteConfiguration : IEntityTypeConfiguration<SavedRo
 
 		#endregion
 
-		#region Foreign key — AppUser (with navigation)
+		#region Foreign key — User (with navigation for referential integrity)
 
 		builder.Property(x => x.UserId)
 			.IsRequired()
@@ -58,71 +59,79 @@ internal sealed class SavedRouteConfiguration : IEntityTypeConfiguration<SavedRo
 		builder.HasOne<User>()
 			.WithMany()
 			.HasForeignKey(x => x.UserId)
-			.OnDelete(DeleteBehavior.Restrict)   // soft-delete AppUser; don't cascade-delete routes
+			.OnDelete(DeleteBehavior.Restrict)      // soft-delete user; don't cascade-delete routes
 			.HasConstraintName("FK_SavedRoutes_AppUsers_UserId");
 
 		#endregion
 
-		#region Foreign key — Route (plain Guid, no navigation)
+		#region RouteId — cross-aggregate reference (strongly typed, no navigation)
 
+		// RouteId is the domain's RouteId strong type for compile-time safety.
+		// At the DB level it is a plain uniqueidentifier column — EF never joins to Routes.
 		builder.Property(x => x.RouteId)
 			.IsRequired()
+			.HasConversion(
+				id => id.Value,
+				value => new RouteId(value))
 			.HasColumnName("RouteId");
 
-		// Index for fast "show all saves of a route" queries (community feed, stats).
 		builder.HasIndex(x => x.RouteId)
 			.HasDatabaseName("IX_SavedRoutes_RouteId");
 
-		#endregion
-
-		#region Unique constraint — no duplicate saves
-
+		// Prevents saving the same route twice for the same user.
 		builder.HasIndex(x => new { x.UserId, x.RouteId })
 			.IsUnique()
 			.HasDatabaseName("UX_SavedRoutes_UserId_RouteId");
 
 		#endregion
 
-		#region Profile columns
+		#region Name (VO)
 
 		builder.Property(x => x.Name)
 			.IsRequired()
-			.HasMaxLength(200)
-			.HasColumnName("Name");
+			.HasConversion(
+				vo => vo.Value,
+				raw => RouteName.FromPersistence(raw))
+			.HasColumnName("Name")
+			.HasMaxLength(200);
+
+		#endregion
+
+		#region Notes (nullable VO)
 
 		builder.Property(x => x.Notes)
-			.HasMaxLength(1000)
-			.HasColumnName("Notes");
+			.HasConversion(
+				vo => vo != null ? vo.Value : null,
+				raw => raw != null ? RouteNotes.FromPersistence(raw) : null)
+			.HasColumnName("Notes")
+			.HasMaxLength(1000);
+
+		#endregion
+
+		#region Visibility
 
 		builder.Property(x => x.Visibility)
 			.IsRequired()
 			.HasConversion<int>()
 			.HasColumnName("Visibility");
 
-		// Index for community feed queries (WHERE Visibility = 1 ORDER BY Audit_CreatedOnUtc DESC)
 		builder.HasIndex(x => x.Visibility)
 			.HasDatabaseName("IX_SavedRoutes_Visibility");
 
 		#endregion
 
-		#region Owned — RouteReview (same table, all nullable)
+		#region Reviews (owned entity collection → separate RouteReviews table)
 
-		builder.OwnsOne(x => x.Review, review =>
-		{
-			review.Property(r => r.Rating)
-				.HasColumnName("Review_Rating");
+		// Use field access so EF writes directly to the backing _reviews list.
+		builder.Navigation(x => x.Reviews)
+			.UsePropertyAccessMode(PropertyAccessMode.Field);
 
-			review.Property(r => r.Comment)
-				.HasMaxLength(2000)
-				.HasColumnName("Review_Comment");
-
-			review.Property(r => r.ReviewedAtUtc)
-				.HasColumnName("Review_ReviewedAtUtc");
-		});
+		builder.OwnsMany(x => x.Reviews, RouteReviewConfiguration.Configure);
 
 		#endregion
 
 		#region Soft delete
+
 		builder.Property(x => x.IsDeleted)
 			.IsRequired()
 			.HasDefaultValue(false)
@@ -136,6 +145,7 @@ internal sealed class SavedRouteConfiguration : IEntityTypeConfiguration<SavedRo
 			.HasColumnName("DeletedBy");
 
 		builder.HasQueryFilter(x => !x.IsDeleted);
+
 		#endregion
 	}
 }

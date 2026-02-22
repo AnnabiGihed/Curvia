@@ -2,6 +2,12 @@
 
 namespace Curvia.Application.Features.SavedRoutes.Commands.Save;
 
+/// <summary>
+/// Author      : Gihed Annabi
+/// Date        : 02-2026
+/// Purpose     : Fast-fail validation for <see cref="SaveRouteCommand"/>.
+///              Mirrors the constraints defined in RouteName and RouteNotes VOs.
+/// </summary>
 internal sealed class SaveRouteCommandValidator : AbstractValidator<SaveRouteCommand>
 {
 	public SaveRouteCommandValidator()

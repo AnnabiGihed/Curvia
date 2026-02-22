@@ -9,13 +9,12 @@ namespace Curvia.Application.Features.SavedRoutes.Commands.Save;
 /// Date        : 02-2026
 /// Purpose     : Saves a generated route to the authenticated user's profile.
 ///
-///              The route must have been previously generated via POST /api/routes.
-///              The RouteId from the generation response is passed here directly —
-///              no re-generation is needed. Route geometry remains in the Routes table;
-///              SavedRoute stores the user's name, notes, and visibility preference.
+///              RouteId is kept as a raw Guid at the command boundary — commands are
+///              API-facing DTOs and must not expose domain types. The handler wraps it
+///              into the domain's RouteId strongly-typed ID before passing to the aggregate.
 /// </summary>
 public sealed record SaveRouteCommand(
-	/// <summary>Authenticated user's application-level ID (resolved from JWT sub → AppUser.Id).</summary>
+	/// <summary>Authenticated user's application-level ID (resolved from JWT sub → User.Id).</summary>
 	Guid UserId,
 	/// <summary>The RouteId returned by POST /api/routes.</summary>
 	Guid RouteId,
@@ -26,4 +25,3 @@ public sealed record SaveRouteCommand(
 	/// <summary>Visibility: 0 = Private (default), 1 = Public (community feed).</summary>
 	SavedRouteVisibility Visibility = SavedRouteVisibility.Private
 ) : ICommand<SaveRouteResponse>;
-

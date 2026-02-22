@@ -1,34 +1,28 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Curvia.Domain.Features.Users.Aggregate;
+using Curvia.Domain.Features.Users.ValueObjects;
+using Curvia.Persistence.EntityFrameworkCore.Constants;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Curvia.Persistence.EntityFrameworkCore.Features.Users.Configurations;
-
 /// <summary>
 /// Author      : Gihed Annabi
 /// Date        : 02-2026
-/// Purpose     : EF Core entity type configuration for the <see cref="User"/> aggregate.
+/// Purpose     : EF Core configuration for <see cref="User"/> aggregate.
 ///
-///              KEY DESIGN DECISIONS:
-///              ─────────────────────────────────────────────────────────────────
-///              1. KeycloakId has a UNIQUE INDEX — Keycloak guarantees the sub claim
-///                 is stable and unique; we enforce the same guarantee in SQL.
+///              ALL value object properties are mapped with HasConversion — each VO wraps a
+///              single primitive and maps to a single column. HasConversion is preferable over
+///              OwnsOne for single-property VOs: no shadow FK, no extra table join hint,
+///              no "owned navigation" noise in EF metadata, and column naming is explicit.
 ///
-///              2. Email has a UNIQUE INDEX — prevents duplicate accounts when
-///                 just-in-time provisioning races (idempotency guard).
-///
-///              3. Soft delete columns (IsDeleted, DeletedOnUtc, DeletedBy) are
-///                 inherited from Entity&lt;T&gt; and mapped here explicitly so EF picks
-///                 them up without convention-based magic.
-///
-///              4. No navigation to SavedRoute — cross-aggregate FK is on SavedRoutes
-///                 table; AppUser never loads routes directly.
+///              FromPersistence() on each VO bypasses domain validation for EF materialization.
+///              Raw values coming from the DB are assumed valid (they were validated on write).
 /// </summary>
 internal sealed class AppUserConfiguration : IEntityTypeConfiguration<User>
 {
 	public void Configure(EntityTypeBuilder<User> builder)
 	{
-		builder.ToTable("AppUsers");
+		builder.ToTable(DbTableNames.AppUsers);
 
 		#region Primary key
 
@@ -42,37 +36,77 @@ internal sealed class AppUserConfiguration : IEntityTypeConfiguration<User>
 
 		#endregion
 
-		#region Identity bridge — KeycloakId
+		#region KeycloakId — unique identity bridge to Keycloak
+
 		builder.Property(x => x.KeycloakId)
 			.IsRequired()
-			.HasMaxLength(128)     // UUID string = 36 chars; 128 gives room for future formats
-			.HasColumnName("KeycloakId");
+			.HasConversion(
+				vo => vo.Value,
+				raw => KeycloakId.FromPersistence(raw))
+			.HasColumnName("KeycloakId")
+			.HasMaxLength(128);
 
-		// Unique index: one AppUser per Keycloak subject claim.
 		builder.HasIndex(x => x.KeycloakId)
 			.IsUnique()
 			.HasDatabaseName("UX_AppUsers_KeycloakId");
+
 		#endregion
 
-		#region Profile columns
+		#region Email
+
 		builder.Property(x => x.Email)
 			.IsRequired()
-			.HasMaxLength(320)
-			.HasColumnName("Email");
+			.HasConversion(
+				vo => vo.Value,
+				raw => UserEmail.FromPersistence(raw))
+			.HasColumnName("Email")
+			.HasMaxLength(320);
 
-		// Unique index: prevents duplicate provisioning on concurrent first-logins.
 		builder.HasIndex(x => x.Email)
 			.IsUnique()
 			.HasDatabaseName("UX_AppUsers_Email");
 
+		#endregion
+
+		#region DisplayName
+
 		builder.Property(x => x.DisplayName)
 			.IsRequired()
-			.HasMaxLength(100)
-			.HasColumnName("DisplayName");
+			.HasConversion(
+				vo => vo.Value,
+				raw => DisplayName.FromPersistence(raw))
+			.HasColumnName("DisplayName")
+			.HasMaxLength(100);
+
+		#endregion
+
+		#region Locale (nullable VO)
 
 		builder.Property(x => x.Locale)
-			.HasMaxLength(10)      // BCP-47 e.g. "fr-BE" = 5 chars; 10 is safe
-			.HasColumnName("Locale");
+			.HasConversion(
+				vo => vo != null ? vo.Value : null,
+				raw => raw != null ? Locale.FromPersistence(raw) : null)
+			.HasColumnName("Locale")
+			.HasMaxLength(10);
+
+		#endregion
+
+		#region Soft delete
+
+		builder.Property(x => x.IsDeleted)
+			.IsRequired()
+			.HasDefaultValue(false)
+			.HasColumnName("IsDeleted");
+
+		builder.Property(x => x.DeletedOnUtc)
+			.HasColumnName("DeletedOnUtc");
+
+		builder.Property(x => x.DeletedBy)
+			.HasMaxLength(256)
+			.HasColumnName("DeletedBy");
+
+		builder.HasQueryFilter(x => !x.IsDeleted);
+
 		#endregion
 	}
 }

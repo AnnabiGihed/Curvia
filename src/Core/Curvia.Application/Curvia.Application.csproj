@@ -11,8 +11,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Templates.Core.Application" Version="7.0.10" />
-    <PackageReference Include="Templates.Core.Tools.DependencyInjection" Version="7.0.10" />
+    <PackageReference Include="Templates.Core.Application" Version="7.0.12" />
+    <PackageReference Include="Templates.Core.Tools.DependencyInjection" Version="7.0.12" />
   </ItemGroup>
 
 </Project>

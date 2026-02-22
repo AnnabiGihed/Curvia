@@ -1,74 +1,95 @@
-﻿using Templates.Core.Domain.Shared;
+﻿using Curvia.Domain.Features.SavedRoutes.ValueObjects;
+using Curvia.Domain.Features.Users.Aggregate;
 using Templates.Core.Domain.Primitives;
+using Templates.Core.Domain.Shared;
 
 namespace Curvia.Domain.Features.SavedRoutes.Entities;
 
 /// <summary>
 /// Author      : Gihed Annabi
 /// Date        : 02-2026
-/// Purpose     : The owner's review of a saved route.
-///              Owned entity within the <see cref="SavedRoute"/> aggregate boundary —
-///              it has no independent lifecycle and is always accessed through SavedRoute.
+/// Purpose     : A user's review of a saved route.
+///              Entity within the <see cref="SavedRoute"/> aggregate boundary —
+///              always accessed and mutated through SavedRoute domain methods.
 ///
-///              ONE REVIEW PER SAVED ROUTE:
-///              The 1:1 relationship is enforced by the aggregate: SavedRoute exposes
-///              a single nullable Review property. To update, the user replaces it
-///              entirely via SavedRoute.SubmitReview().
+///              MULTIPLE REVIEWS PER SAVED ROUTE:
+///              When a route is public, community riders can leave reviews.
+///              Each review belongs to one reviewer (ReviewerUserId).
+///              The aggregate enforces: one review per (SavedRouteId, ReviewerUserId).
+///              Submitting a second review replaces the first (last-write-wins).
+///
+///              VALUE OBJECTS:
+///                Rating  → ReviewRating  (1–5, domain-validated)
+///                Comment → ReviewComment (optional, max 2,000 chars)
 ///
 ///              RATING SCALE:
-///              1★ = Disappointing    (route was worse than expected)
-///              2★ = Below average    (some interest, not worth repeating)
-///              3★ = Good             (enjoyable, would ride again)
-///              4★ = Great            (excellent roads, recommended)
-///              5★ = Outstanding      (one of the best rides, must-do)
+///              1★ = Disappointing   2★ = Below average   3★ = Good
+///              4★ = Great           5★ = Outstanding
 /// </summary>
 public sealed class RouteReview : Entity<RouteReviewId>
 {
 	#region Properties
-	/// <summary>
-	/// Star rating from 1 to 5. Stored as an int column, validated by domain.
-	/// </summary>
-	public int Rating { get; private set; }
 
-	/// <summary>
-	/// Optional free-text review. Max 2000 chars.
-	/// Null when the user submitted a rating-only review.
-	/// </summary>
-	public string? Comment { get; private set; }
+	/// <summary>The user who wrote this review. May differ from the SavedRoute owner (community reviews).</summary>
+	public UserId ReviewerUserId { get; private set; } = default!;
 
-	/// <summary>UTC timestamp when the review was last written or updated.</summary>
+	/// <summary>Star rating 1–5.</summary>
+	public ReviewRating Rating { get; private set; } = default!;
+
+	/// <summary>Optional free-text comment. Null when rating-only review submitted.</summary>
+	public ReviewComment? Comment { get; private set; }
+
+	/// <summary>UTC timestamp when the review was last submitted or updated.</summary>
 	public DateTime ReviewedAtUtc { get; private set; }
+
 	#endregion
 
 	#region Constructors
+
 	/// <summary>For EF Core.</summary>
 	private RouteReview() { }
 
-	private RouteReview(RouteReviewId id, int rating, string? comment, DateTime reviewedAtUtc)
+	private RouteReview(RouteReviewId id, UserId reviewerUserId, ReviewRating rating, ReviewComment? comment)
+		: base(id)
 	{
-		Id = id;
+		ReviewerUserId = reviewerUserId;
 		Rating = rating;
 		Comment = comment;
-		ReviewedAtUtc = reviewedAtUtc;
+		ReviewedAtUtc = DateTime.UtcNow;
 	}
+
 	#endregion
 
 	#region Factory
+
 	/// <summary>
-	/// Creates a <see cref="RouteReview"/>.
-	/// Called only from <see cref="SavedRoute.SubmitReview"/>.
+	/// Creates a new review. Called only from <see cref="SavedRoute.SubmitReview"/>.
 	/// </summary>
-	/// <param name="rating">1–5 star rating.</param>
-	/// <param name="comment">Optional text review. Max 2,000 characters.</param>
-	internal static Result<RouteReview> Create(int rating, string? comment)
+	internal static Result<RouteReview> Create(UserId reviewerUserId, ReviewRating rating, ReviewComment? comment)
 	{
-		if (rating is < 1 or > 5)
-			return Result.Failure<RouteReview>(new Error("Review.Rating.OutOfRange", $"Rating must be between 1 and 5. Got {rating}."));
+		if (reviewerUserId is null)
+			return Result.Failure<RouteReview>(new Error("RouteReview.ReviewerUserId.Null", "ReviewerUserId is required."));
 
-		if (comment is not null && comment.Length > 2000)
-			return Result.Failure<RouteReview>(new Error("Review.Comment.TooLong", "Review comment must not exceed 2,000 characters."));
-
-		return Result.Success(new RouteReview(new RouteReviewId(Guid.NewGuid()), rating, string.IsNullOrWhiteSpace(comment) ? null : comment.Trim(), DateTime.UtcNow));
+		return Result.Success(new RouteReview(new RouteReviewId(Guid.NewGuid()), reviewerUserId, rating, comment));
 	}
+
+	#endregion
+
+	#region Domain behaviours
+
+	/// <summary>
+	/// Replaces rating and comment on an existing review.
+	/// Called only from <see cref="SavedRoute.SubmitReview"/> when a review by this user already exists.
+	/// </summary>
+	internal void Update(ReviewRating rating, ReviewComment? comment)
+	{
+		Rating = rating;
+		Comment = comment;
+		ReviewedAtUtc = DateTime.UtcNow;
+	}
+
+	/// <summary>Soft-deletes the review.</summary>
+	internal void Remove(string actorId) => SoftDelete(DateTime.UtcNow, actorId);
+
 	#endregion
 }
