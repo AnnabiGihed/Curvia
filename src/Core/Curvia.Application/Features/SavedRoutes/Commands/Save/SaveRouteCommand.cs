@@ -1,6 +1,6 @@
-﻿using Curvia.Application.Features.SavedRoutes.Commands.Save.Responses;
-using Curvia.Domain.Features.SavedRoutes.Enums;
+﻿using Curvia.Domain.Features.SavedRoutes.Enums;
 using Templates.Core.Application.Abstractions.Messaging.Commands;
+using Curvia.Application.Features.SavedRoutes.Commands.Save.Responses;
 
 namespace Curvia.Application.Features.SavedRoutes.Commands.Save;
 
@@ -8,20 +8,10 @@ namespace Curvia.Application.Features.SavedRoutes.Commands.Save;
 /// Author      : Gihed Annabi
 /// Date        : 02-2026
 /// Purpose     : Saves a generated route to the authenticated user's profile.
-///
-///              RouteId is kept as a raw Guid at the command boundary — commands are
-///              API-facing DTOs and must not expose domain types. The handler wraps it
-///              into the domain's RouteId strongly-typed ID before passing to the aggregate.
 /// </summary>
-public sealed record SaveRouteCommand(
-	/// <summary>Authenticated user's application-level ID (resolved from JWT sub → User.Id).</summary>
-	Guid UserId,
-	/// <summary>The RouteId returned by POST /api/routes.</summary>
-	Guid RouteId,
-	/// <summary>User-given name for this route (e.g., "Weekend Ardennes loop"). Max 200 chars.</summary>
-	string Name,
-	/// <summary>Optional private notes. Max 1,000 chars. Never shown publicly.</summary>
-	string? Notes = null,
-	/// <summary>Visibility: 0 = Private (default), 1 = Public (community feed).</summary>
-	SavedRouteVisibility Visibility = SavedRouteVisibility.Private
-) : ICommand<SaveRouteResponse>;
+/// <param name="UserId">Authenticated user identifier (Keycloak-backed AppUser).</param>
+/// <param name="RouteId">Generated route identifier to save.</param>
+/// <param name="Name">User-given route name (max 200 chars).</param>
+/// <param name="Notes">Optional private notes (max 1,000 chars).</param>
+/// <param name="Visibility">Route visibility in the community feed (default: Private).</param>
+public sealed record SaveRouteCommand(Guid UserId, Guid RouteId, string Name, string? Notes = null, SavedRouteVisibility Visibility = SavedRouteVisibility.Private) : ICommand<SaveRouteResponse>;

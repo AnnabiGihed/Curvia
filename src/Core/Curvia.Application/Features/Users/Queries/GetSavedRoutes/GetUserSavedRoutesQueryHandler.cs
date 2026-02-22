@@ -12,24 +12,18 @@ namespace Curvia.Application.Features.Users.Queries.GetSavedRoutes;
 /// Purpose     : Handles <see cref="GetUserSavedRoutesQuery"/>.
 ///              Returns all active saved routes for the authenticated user,
 ///              with their full review collection mapped to flat DTOs.
-///
-///              VO UNWRAPPING:
-///              Domain value objects (RouteName, RouteNotes, ReviewRating, ReviewComment)
-///              are unwrapped via .Value at the mapping boundary — DTOs expose primitives only.
-///
-///              SOFT-DELETED REVIEWS:
-///              Reviews are filtered to exclude soft-deleted ones after load.
-///              EF does not support HasQueryFilter on owned entity collections,
-///              so the filter is applied in-memory here.
 /// </summary>
-internal sealed class GetUserSavedRoutesQueryHandler
-	: IQueryHandler<GetUserSavedRoutesQuery, IReadOnlyList<SavedRouteDto>>
+internal sealed class GetUserSavedRoutesQueryHandler : IQueryHandler<GetUserSavedRoutesQuery, IReadOnlyList<SavedRouteDto>>
 {
 	#region Dependencies
 	private readonly ISavedRouteRepository _savedRouteRepository;
 	#endregion
 
 	#region Constructor
+	/// <summary>
+	/// Initializes a new instance of <see cref="GetUserSavedRoutesQueryHandler"/>.
+	/// </summary>
+	/// <param name="savedRouteRepository">Repository used to read saved routes for a given user.</param>
 	public GetUserSavedRoutesQueryHandler(ISavedRouteRepository savedRouteRepository)
 	{
 		_savedRouteRepository = savedRouteRepository ?? throw new ArgumentNullException(nameof(savedRouteRepository));
@@ -37,8 +31,14 @@ internal sealed class GetUserSavedRoutesQueryHandler
 	#endregion
 
 	#region IQueryHandler
-	public async Task<Result<IReadOnlyList<SavedRouteDto>>> Handle(
-		GetUserSavedRoutesQuery query, CancellationToken cancellationToken)
+	/// <summary>
+	/// Loads all saved routes for the requested user and maps them (including non-deleted reviews)
+	/// to <see cref="SavedRouteDto"/> records for API consumption.
+	/// </summary>
+	/// <param name="query">Query containing the authenticated user id.</param>
+	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <returns>All active saved routes with their review DTOs.</returns>
+	public async Task<Result<IReadOnlyList<SavedRouteDto>>> Handle(GetUserSavedRoutesQuery query, CancellationToken cancellationToken)
 	{
 		var userId = new UserId(query.UserId);
 		var savedRoutes = await _savedRouteRepository.GetByUserIdAsync(userId, cancellationToken);
@@ -46,18 +46,18 @@ internal sealed class GetUserSavedRoutesQueryHandler
 		var dtos = savedRoutes
 			.Select(sr => new SavedRouteDto(
 				SavedRouteId: sr.Id.Value,
-				RouteId: sr.RouteId.Value,           // unwrap RouteId VO
-				Name: sr.Name.Value,              // unwrap RouteName VO
-				Notes: sr.Notes?.Value,            // unwrap RouteNotes? VO
+				RouteId: sr.RouteId.Value,
+				Name: sr.Name.Value,
+				Notes: sr.Notes?.Value,
 				Visibility: sr.Visibility,
 				SavedAtUtc: sr.Audit.CreatedOnUtc,
 				Reviews: sr.Reviews
-					.Where(r => !r.IsDeleted)             // filter soft-deleted reviews in memory
+					.Where(r => !r.IsDeleted)
 					.Select(r => new ReviewDto(
 						ReviewId: r.Id.Value,
 						ReviewerUserId: r.ReviewerUserId.Value,
-						Rating: r.Rating.Value,   // unwrap ReviewRating VO
-						Comment: r.Comment?.Value, // unwrap ReviewComment? VO
+						Rating: r.Rating.Value,
+						Comment: r.Comment?.Value,
 						ReviewedAtUtc: r.ReviewedAtUtc))
 					.ToList()))
 			.ToList();

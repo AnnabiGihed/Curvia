@@ -10,6 +10,11 @@ namespace Curvia.Application.Features.SavedRoutes.Commands.Save;
 /// </summary>
 internal sealed class SaveRouteCommandValidator : AbstractValidator<SaveRouteCommand>
 {
+	#region Constructor
+	/// <summary>
+	/// Initializes validation rules for <see cref="SaveRouteCommand"/>.
+	/// Ensures required identifiers are present and enforces name/notes length constraints.
+	/// </summary>
 	public SaveRouteCommandValidator()
 	{
 		RuleFor(x => x.UserId)
@@ -29,4 +34,5 @@ internal sealed class SaveRouteCommandValidator : AbstractValidator<SaveRouteCom
 		RuleFor(x => x.Visibility)
 			.IsInEnum().WithMessage("Visibility must be 0 (Private) or 1 (Public).");
 	}
+	#endregion
 }
