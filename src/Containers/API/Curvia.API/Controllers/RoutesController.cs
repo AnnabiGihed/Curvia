@@ -33,7 +33,6 @@ public sealed class RoutesController : ApiController
 	/// <response code="400">Validation failed or no valid route found with the given constraints.</response>
 	/// <response code="500">Unexpected error — Valhalla unreachable or internal failure.</response>
 	[HttpPost]
-	[Authorize(Roles = "User")]
 	[ProducesResponseType(typeof(GenerateRouteResponse), StatusCodes.Status200OK)]
 	[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
 	[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
@@ -53,7 +52,6 @@ public sealed class RoutesController : ApiController
 	/// <response code="200">GPX file as <c>application/gpx+xml</c> with Content-Disposition: attachment.</response>
 	/// <response code="400">Validation failed — invalid polyline or missing required fields.</response>
 	[HttpPost("export/gpx")]
-	[Authorize(Roles = "Administrator")]
 	[ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
 	[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
 	public async Task<IActionResult> ExportGpx([FromBody] ExportGpxCommand command, CancellationToken cancellationToken)
