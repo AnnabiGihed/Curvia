@@ -68,9 +68,7 @@ public sealed class MotorcycleMaker : AggregateRoot<MotorcycleMakerId>
 	public static Result<MotorcycleMaker> Suggest(string name, UserId suggestedByUserId)
 	{
 		if (suggestedByUserId is null)
-			return Result.Failure<MotorcycleMaker>(new Error(
-				"MotorcycleMaker.Suggest.UserRequired",
-				"A user ID is required to suggest a maker."));
+			return Result.Failure<MotorcycleMaker>(new Error("MotorcycleMaker.Suggest.UserRequired", "A user ID is required to suggest a maker."));
 
 		var nameResult = ValidateName(name);
 		if (nameResult.IsFailure)
@@ -78,11 +76,12 @@ public sealed class MotorcycleMaker : AggregateRoot<MotorcycleMakerId>
 
 		var maker = new MotorcycleMaker
 		{
-			Id = MotorcycleMakerId.New(),
 			Name = name.Trim(),
-			Status = CatalogItemStatus.PendingValidation,
+			Id = MotorcycleMakerId.New(),
 			SuggestedByUserId = suggestedByUserId,
+			Status = CatalogItemStatus.PendingValidation,
 		};
+
 		maker.InitializeAudit(DateTime.UtcNow, suggestedByUserId.Value.ToString());
 		return Result.Success(maker);
 	}

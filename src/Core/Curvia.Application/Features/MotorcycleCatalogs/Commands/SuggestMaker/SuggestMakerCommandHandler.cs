@@ -1,9 +1,9 @@
-﻿using Curvia.Application.Features.MotorcycleCatalogs.Responses;
+﻿using Templates.Core.Domain.Shared;
+using Curvia.Domain.Features.Users.Aggregate;
 using Curvia.Domain.Features.MotorcycleCatalog.Aggregates;
 using Curvia.Domain.Features.MotorcycleCatalog.Repositories;
-using Curvia.Domain.Features.Users.Aggregate;
+using Curvia.Application.Features.MotorcycleCatalogs.Responses;
 using Templates.Core.Application.Abstractions.Messaging.Commands;
-using Templates.Core.Domain.Shared;
 
 namespace Curvia.Application.Features.MotorcycleCatalogs.Commands.SuggestMaker;
 
@@ -18,10 +18,7 @@ internal sealed class SuggestMakerCommandHandler : ICommandHandler<SuggestMakerC
 	{
 		// Guard: don't allow duplicate suggestions of already-official makers
 		if (await _makers.OfficialNameExistsAsync(cmd.Name, ct))
-			return Result.Failure<MakerDto>(new Error(
-				"MotorcycleMaker.AlreadyOfficial",
-				$"A maker named '{cmd.Name}' is already in the official catalog. Please select it from the list."),
-				ResultExceptionType.Conflict);
+			return Result.Failure<MakerDto>(new Error("MotorcycleMaker.AlreadyOfficial", $"A maker named '{cmd.Name}' is already in the official catalog. Please select it from the list."), ResultExceptionType.Conflict);
 
 		var result = MotorcycleMaker.Suggest(cmd.Name, new UserId(cmd.UserId));
 		if (result.IsFailure)

@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Curvia.Persistence.EntityFrameworkCore.Constants;
 using Curvia.Domain.Features.MotorcycleCatalog.Aggregates;
+using Curvia.Domain.Features.Users.Aggregate;
 
 namespace Curvia.Persistence.EntityFrameworkCore.Features.MotorcycleCatalog.Configurations;
 
