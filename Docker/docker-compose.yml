@@ -1,5 +1,148 @@
 version: "3.9"
+
 services:
+  # Main SQL Server container
+  mssql:
+    image: usildevops/mssql-docker-enhanced
+    container_name: mssql-server
+    hostname: mssql-server
+    shm_size: 1g
+    restart: unless-stopped
+    ports:
+      - "1433:1433"
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "MyStrong@Pass123"
+      MSSQL_PID: "Developer"
+      TZ: "America/Lima"
+    volumes:
+      # Use a single named volume for all SQL Server data
+      - mssql_data:/var/opt/mssql
+    networks:
+      - curvia_network
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P MyStrong@Pass123 -Q 'SELECT 1' -b -o /dev/null"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 60s
+
+  # Initialization container - creates database after SQL Server is ready
+  mssql-init:
+    image: mcr.microsoft.com/mssql-tools
+    container_name: mssql-init
+    depends_on:
+      mssql:
+        condition: service_healthy
+    networks:
+      - curvia_network
+    volumes:
+      - ./DB/scripts/init-db.sql:/tmp/init-db.sql
+    command: >
+      /bin/bash -c "
+      echo 'SQL Server is healthy, running initialization script...';
+      /opt/mssql-tools/bin/sqlcmd -S mssql-server -U sa -P 'MyStrong@Pass123' -d master -i /tmp/init-db.sql;
+      echo 'Database initialization complete!';
+      "
+    restart: "no"
+
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - curvia_network
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    container_name: keycloak
+    depends_on:
+      mssql-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      KC_DB: "mssql"
+      KC_DB_URL: "jdbc:sqlserver://mssql-server:1433;databaseName=Keycloak;encrypt=false;trustServerCertificate=true"
+      KC_DB_USERNAME: "sa"
+      KC_DB_PASSWORD: "MyStrong@Pass123"
+      KC_ADMIN: "admin"
+      KC_ADMIN_PASSWORD: "admin"
+      KC_HOSTNAME_STRICT: "false"
+      KC_BOOTSTRAP_ADMIN_USERNAME: "admin"
+      KC_BOOTSTRAP_ADMIN_PASSWORD: "admin"
+    volumes:
+      - keycloak_data:/opt/keycloak/data
+    command: ["start-dev"]
+    networks:
+      - curvia_network
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.0
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    networks:
+      - curvia_network
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.17.0
+    container_name: kibana
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    ports:
+      - "5601:5601"
+    environment:
+      ELASTICSEARCH_HOSTS: "http://elasticsearch:9200"
+    networks:
+      - curvia_network
+
+  rabbitmq:
+    image: rabbitmq:management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: "admin"
+      RABBITMQ_DEFAULT_PASS: "admin"
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      mssql:
+        condition: service_healthy
+    networks:
+      - curvia_network
+      
   valhalla:
     image: ghcr.io/gis-ops/docker-valhalla/valhalla:latest
     container_name: valhalla
@@ -14,3 +157,15 @@ services:
       - build_time_zones=True
       - build_transit=False
     restart: unless-stopped
+    
+volumes:
+  mssql_data:
+    driver: local
+  keycloak_data:
+    driver: local
+  es_data:
+    driver: local
+
+networks:
+  curvia_network:
+    driver: bridge

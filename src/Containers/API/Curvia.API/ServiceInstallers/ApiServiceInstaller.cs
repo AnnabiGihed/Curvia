@@ -1,7 +1,7 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc.Authorization;
-using System.Reflection;
+﻿using System.Reflection;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc.Authorization;
 using Templates.Core.Tools.DependencyInjection;
 using Templates.Core.Tools.DependencyInjection.Abstractions;
 
@@ -15,7 +15,6 @@ public sealed class ApiServiceInstaller : BaseServiceInstaller, IServiceInstalle
 		{
 			base.IncludeConventionBasedRegistrations(services, configuration, new List<Assembly>() { AssemblyReference.Assembly }.ToArray());
 		}
-
 
 		// Default authorization policy for all endpoints
 		var requireAuthenticatedUserPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
@@ -44,12 +43,7 @@ public sealed class ApiServiceInstaller : BaseServiceInstaller, IServiceInstalle
 		#endregion
 
 		#region Auth stubs
-		// Keycloak integration comes in V2.
-		services.AddAuthentication();
-		services.AddAuthorization();
-
-		services.AddEndpointsApiExplorer();
-		services.AddSwaggerGen();
+		services.AddKeycloakAuthentication(configuration);
 		#endregion
 	}
 }

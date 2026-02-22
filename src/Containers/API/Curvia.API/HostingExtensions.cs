@@ -20,7 +20,7 @@ internal static class HostingExtensions
 			app.UseSwagger();
 			app.UseSwaggerUI(c =>
 			{
-				c.SwaggerEndpoint("/swagger/v1/swagger.json", "Curvia API");
+				c.SwaggerEndpoint("/swagger/v1/swagger.json", "Curvia API V1");
 			});
 		}
 

@@ -1,7 +1,7 @@
 Create Docker : docker compose -p curvia up -d  / docker exec -it valhalla sh -lc 'ulimit -n'
 Login to KeyClock : 
 	User : Administrator
-	Password : 8uT*J1xY*QpL*w39vR5*
+	Password : MyStrong@Pass123
 Connection to SQL Server from SSMS : 
 	Server name: localhost,1433
 	Authentication : SQL Server Authentication
@@ -14,5 +14,5 @@ Export Docker Configuration : docker exec keycloak /opt/keycloak/bin/kc.sh expor
 
 docker compose -p curvia down
 
-docker volume rm idea-tracker_mssql_data
-docker volume rm idea-tracker_keycloak_persistent_data
+docker volume rm curvia_mssql_data
+docker volume rm curvia_keycloak_persistent_data
