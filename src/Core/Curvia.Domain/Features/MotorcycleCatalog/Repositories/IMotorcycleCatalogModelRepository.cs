@@ -11,16 +11,15 @@ namespace Curvia.Domain.Features.MotorcycleCatalog.Repositories;
 public interface IMotorcycleCatalogModelRepository : IAsyncCommandRepository<MotorcycleCatalogModel, MotorcycleCatalogModelId>
 {
 	/// <summary>
-	/// Official models for a given maker, sorted alphabetically.
-	/// Used for public model dropdowns after a maker is selected.
+	/// All PendingValidation models.
+	/// Used in the admin approval UI.
 	/// </summary>
-	Task<IReadOnlyList<MotorcycleCatalogModel>> GetOfficialByMakerAsync(
-		MotorcycleMakerId makerId, CancellationToken ct = default);
-
-	/// <summary>All PendingValidation models. Used in the admin approval UI.</summary>
 	Task<IReadOnlyList<MotorcycleCatalogModel>> GetAllPendingAsync(CancellationToken ct = default);
 
-	/// <summary>Find by ID (any status). Returns null if not found or soft-deleted.</summary>
+	/// <summary>
+	/// Find by ID (any status).
+	/// Returns null if not found or soft-deleted.
+	/// </summary>
 	Task<MotorcycleCatalogModel?> FindByIdAsync(MotorcycleCatalogModelId id, CancellationToken ct = default);
 
 	/// <summary>
@@ -28,4 +27,10 @@ public interface IMotorcycleCatalogModelRepository : IAsyncCommandRepository<Mot
 	/// Used to prevent duplicate suggestions.
 	/// </summary>
 	Task<bool> OfficialNameExistsAsync(MotorcycleMakerId makerId, string name, CancellationToken ct = default);
+
+	/// <summary>
+	/// Official models for a given maker, sorted alphabetically.
+	/// Used for public model dropdowns after a maker is selected.
+	/// </summary>
+	Task<IReadOnlyList<MotorcycleCatalogModel>> GetOfficialByMakerAsync(MotorcycleMakerId makerId, CancellationToken ct = default);
 }
