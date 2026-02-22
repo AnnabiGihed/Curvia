@@ -9,28 +9,6 @@
 ///                ReliefScore = (ElevationGain × 0.6) + (ElevationVariance × 0.4)
 ///              Both components are normalised per-kilometre and combined into
 ///              a final score in [0, 1].
-///
-///              CALIBRATION NOTE — regional ceilings vs. Alpine ceilings:
-///                Previous ceilings were calibrated against Alpine passes:
-///                  ElevationGainCeilingPerKm = 70 m/km  (Grossglockner: ~70 m/km)
-///                  ElevationVarianceCeiling  = 150 m    (Alpine std dev)
-///
-///                In the Ardennes and Belgian deployment region:
-///                  Signal de Botrange (highest point, 694m): ~15–20 m/km gain over approach
-///                  Typical Ardennes loop (Spa-Francorchamps area): ~10–18 m/km gain
-///                  Ourthe / Semois valley: ~12–20 m/km gain, std dev ~50–80m
-///
-///                With Alpine ceilings, Ardennes routes scored 0.14–0.26 on elevation —
-///                correctly reflecting that the Ardennes is not the Alps, but producing
-///                scores too low to meaningfully differentiate good vs. great Ardennes riding.
-///
-///                New ceilings calibrated to "excellent Ardennes" as the benchmark:
-///                  ElevationGainCeilingPerKm = 25 m/km  (Ardennes peak: ~20–25 m/km)
-///                  ElevationVarianceCeiling  = 80 m     (Ardennes std dev peak: ~70–80m)
-///
-///                Routes in genuinely hilly terrain (Vosges, Eifel, Ardennes best loops)
-///                will now score 0.6–0.9. Alpine passes score 1.0 (clamped), as expected.
-///                Flat Belgian plateau routes still score 0.05–0.15, preserving discrimination.
 /// </summary>
 internal static class ElevationAnalyzer
 {

@@ -26,6 +26,14 @@ internal sealed class SavedRouteRepository : BaseAsyncCommandRepository<SavedRou
 
 	#region ISavedRouteRepository
 	/// <inheritdoc/>
+	public async Task<SavedRoute?> FindByIdAsync(SavedRouteId id, CancellationToken cancellationToken = default)
+	{
+		return await DbContext.Set<SavedRoute>()
+			.Include(sr => sr.Reviews)
+			.FirstOrDefaultAsync(sr => sr.Id == id, cancellationToken);
+	}
+
+	/// <inheritdoc/>
 	public async Task<bool> AlreadySavedAsync(UserId userId, RouteId routeId, CancellationToken cancellationToken = default)
 	{
 		return await DbContext.Set<SavedRoute>()
