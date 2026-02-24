@@ -1,7 +1,7 @@
 ﻿using System.Security.Claims;
 using Templates.Core.Caching.Extensions;
-using Templates.Core.Authentication.Extensions;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Templates.Core.Authentication.AspNetCore.Extensions;
 
 namespace Curvia.API.ServiceInstallers;
 

@@ -2,8 +2,8 @@
 using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Curvia.API.Middleware.Identity;
-using Templates.Core.Authentication.Extensions;
 using Templates.Core.Containers.API.Middleware;
+using Templates.Core.Authentication.AspNetCore.Extensions;
 using Templates.Core.Tools.DependencyInjection.Abstractions;
 using Curvia.Persistence.EntityFrameworkCore.PersistenceContext;
 using Curvia.Persistence.EntityFrameworkCore.Features.MotorcycleCatalog.Seed;
