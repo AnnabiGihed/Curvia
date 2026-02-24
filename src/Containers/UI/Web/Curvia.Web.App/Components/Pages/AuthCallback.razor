@@ -1,0 +1,30 @@
+﻿@page "/auth/callback"
+
+@inject IBlazorKeycloakAuthService Auth
+@inject NavigationManager Nav
+
+<PageTitle>Signing in…</PageTitle>
+
+<p>Completing sign-in, please wait…</p>
+
+@code {
+    [SupplyParameterFromQuery(Name = "code")]
+    private string? Code { get; set; }
+
+    [SupplyParameterFromQuery(Name = "state")]
+    private string? State { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (string.IsNullOrEmpty(Code) || string.IsNullOrEmpty(State))
+        {
+            Nav.NavigateTo("/", forceLoad: true);
+            return;
+        }
+
+        var success = await Auth.HandleCallbackAsync(Code, State);
+
+        // Navigate to the return URL stored in the session, or fall back to home
+        Nav.NavigateTo(success ? "/" : "/auth/login-failed", forceLoad: true);
+    }
+}

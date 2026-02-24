@@ -1,0 +1,12 @@
+﻿@page "/auth/login-failed"
+@inject NavigationManager Nav
+
+<PageTitle>Sign-in failed</PageTitle>
+
+<h2>Sign-in failed</h2>
+<p>Authentication could not be completed. This can happen if the login session expired or was tampered with.</p>
+<a href="/" @onclick="RetryLogin" @onclick:preventDefault>Try again</a>
+
+@code {
+    private void RetryLogin() => Nav.NavigateTo("/auth/login", forceLoad: true);
+}

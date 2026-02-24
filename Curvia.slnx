@@ -8,11 +8,9 @@
     <Project Path="src/Containers/UI/Curvia.App.Shared/Curvia.App.Shared.csproj" />
     <Project Path="src/Containers/UI/Curvia.App.ViewModels/Curvia.App.ViewModels.csproj" />
   </Folder>
-  <Folder Name="/src/Containers/UI/Mobile/">
-    <Project Path="src/Containers/UI/Mobile/Curvia.Mobile.App/Curvia.Mobile.App.csproj" />
-  </Folder>
+  <Folder Name="/src/Containers/UI/Mobile/" />
   <Folder Name="/src/Containers/UI/Web/">
-    <Project Path="src/Containers/UI/Web/Curvia.Web.App/Curvia.Web.App.csproj" Id="7a6d98e7-e2f0-4dbd-a567-ecf134fa7a87" />
+    <Project Path="src/Containers/UI/Web/Curvia.Web.App/Curvia.Web.App.csproj" Id="d3407fd6-dc6f-4a36-b5e4-d0c7e11ad650" />
   </Folder>
   <Folder Name="/src/Core/">
     <Project Path="src/Core/Curvia.Application/Curvia.Application.csproj" Id="ddea7983-7e6b-4c0e-b496-1981dcfbc2d7" />

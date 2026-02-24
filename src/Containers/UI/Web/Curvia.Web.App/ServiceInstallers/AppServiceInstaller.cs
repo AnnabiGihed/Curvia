@@ -1,5 +1,7 @@
 ﻿using Radzen;
+using System.Reflection.Metadata;
 using Templates.Core.Tools.DependencyInjection;
+using Templates.Core.Authentication.Blazor.Extensions;
 using Templates.Core.Tools.DependencyInjection.Abstractions;
 
 namespace Curvia.Web.App.ServiceInstallers;
@@ -19,15 +21,22 @@ public class AppServiceInstaller : BaseServiceInstaller, IServiceInstaller
 		services.AddScoped<ThemeService>();
 		#endregion
 
-		//#region Authentication Services
-		//services.AddKeycloakMaui(configuration);
-		//services.AddAuthorizationCore();
-		//services.AddScoped<AuthenticationStateProvider, KeycloakAuthStateProvider>();
-		//#endregion
+		#region Redis (required by Keycloak Blazor session store)
+		services.AddStackExchangeRedisCache(options =>
+		{
+			options.Configuration = configuration.GetConnectionString("Redis");
+		});
+		#endregion
 
-		//services.AddHttpClient("CurviaApi", client =>
-		//{
-		//	client.BaseAddress = new Uri("https://localhost:7062");
-		//}).AddKeycloakHandler();
+		#region Authentication Services
+		services.AddKeycloakBlazor(configuration);
+		#endregion
+
+		#region Typed HTTP client for Curvia API (bearer token auto-attached)
+		services.AddHttpClient("CurviaApi", client =>
+		{
+			client.BaseAddress = new Uri(configuration["CurviaApi:BaseUrl"] ?? "https://localhost:7062");
+		}).AddKeycloakHandler();
+		#endregion
 	}
 }

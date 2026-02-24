@@ -1,4 +1,5 @@
 ﻿using Curvia.App.Shared.Middlewares;
+using Radzen;
 using System.Reflection;
 using Templates.Core.Tools.DependencyInjection.Abstractions;
 
@@ -17,8 +18,12 @@ public static class HostingExtensions
 			app.UseHsts();
 		}
 
+
 		app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 		app.UseHttpsRedirection();
+
+		app.UseAuthentication();
+		app.UseAuthorization();
 
 		app.UseAntiforgery();
 
@@ -30,6 +35,8 @@ public static class HostingExtensions
 	public static WebApplication ConfigureServices(this WebApplicationBuilder builder)
 	{
 		builder.Services.InstallServices(builder.Configuration, false, AssemblyReference.Assembly);
+
+		builder.Services.AddRadzenComponents();
 
 		return builder.Build();
 	}

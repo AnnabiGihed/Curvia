@@ -1,0 +1,15 @@
+﻿@page "/auth/logout"
+@inject IBlazorKeycloakAuthService Auth
+
+<PageTitle>Signing out…</PageTitle>
+
+<p>Signing out, please wait…</p>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        // LogoutAsync revokes the refresh token, clears Redis, deletes the
+        // session cookie, and redirects to the Keycloak end-session endpoint.
+        await Auth.LogoutAsync();
+    }
+}
