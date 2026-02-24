@@ -6,4 +6,9 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Templates.Core.Containers.API" Version="8.0.2" />
+    <PackageReference Include="Templates.Core.Tools.DependencyInjection" Version="8.0.2" />
+  </ItemGroup>
+
 </Project>
