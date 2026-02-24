@@ -13,9 +13,9 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.4" />
-    <PackageReference Include="Templates.Core.Authentication.AspNetCore" Version="8.3.0" />
-    <PackageReference Include="Templates.Core.Caching" Version="8.3.0" />
-    <PackageReference Include="Templates.Core.Containers.API" Version="8.3.0" />
+    <PackageReference Include="Templates.Core.Authentication.AspNetCore" Version="8.3.6" />
+    <PackageReference Include="Templates.Core.Caching" Version="8.3.6" />
+    <PackageReference Include="Templates.Core.Containers.API" Version="8.3.6" />
   </ItemGroup>
 
   <ItemGroup>

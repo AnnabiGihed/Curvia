@@ -1,8 +1,26 @@
 ﻿@page "/"
 @inject KeycloakAuthService auth
+@inject NavigationManager Nav
 
 <PageTitle>Home</PageTitle>
 
 <h1>Hello, world!</h1>
 
 Welcome to your new app.
+
+@inject IBlazorKeycloakAuthService Auth
+
+<AuthorizeView>
+    <Authorized>
+        <span>Hello, @context.User.Identity?.Name!</span>
+        <RadzenButton Click="@Logout" Text="Logout" />
+    </Authorized>
+    <NotAuthorized>
+        <RadzenButton Click="@Login" Text="Login" />
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    async Task Login() => await Auth.LoginAsync();
+    async Task Logout() => await Auth.LogoutAsync();
+}

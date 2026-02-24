@@ -9,15 +9,12 @@
     <RadzenTheme Theme="material" />
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="stylesheet" href="@Assets["Curvia.Web.App.styles.css"]" />
-
     <ImportMap />
     <HeadOutlet />
 </head>
 
 <body>
-    <CascadingAuthenticationState>
-        <Routes @rendermode="InteractiveServer"/>
-    </CascadingAuthenticationState>
+    <Routes @rendermode="InteractiveServer" />
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
     <script src="_content/Radzen.Blazor/Radzen.Blazor.js?v=@(typeof(Radzen.Colors).Assembly.GetName().Version)"></script>
