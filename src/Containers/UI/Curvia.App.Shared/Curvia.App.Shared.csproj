@@ -7,8 +7,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Templates.Core.Containers.API" Version="8.3.6" />
-    <PackageReference Include="Templates.Core.Tools.DependencyInjection" Version="8.3.6" />
+    <PackageReference Include="Templates.Core.Containers.API" Version="8.3.7" />
+    <PackageReference Include="Templates.Core.Tools.DependencyInjection" Version="8.3.7" />
   </ItemGroup>
 
 </Project>
