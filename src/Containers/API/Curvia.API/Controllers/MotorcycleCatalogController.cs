@@ -2,8 +2,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Curvia.API.Middleware.Identity;
 using Microsoft.AspNetCore.Authorization;
+using Curvia.API.DTOs.MotorcycleCatalogs;
 using Templates.Core.Containers.API.Abstractions;
-using Curvia.Domain.Features.MotorcycleCatalog.Enums;
 using Curvia.Application.Features.MotorcycleCatalogs.Responses;
 using Curvia.Application.Features.MotorcycleCatalogs.Commands.AddMaker;
 using Curvia.Application.Features.MotorcycleCatalogs.Commands.AddModel;
@@ -204,10 +204,3 @@ public sealed class MotorcycleCatalogController : ApiController
 	}
 	#endregion
 }
-
-#region Request DTOs
-public sealed record AddMakerRequest(string Name);
-public sealed record SuggestMakerRequest(string Name);
-public sealed record AddModelRequest(string Name, MotorcycleCategory Category);
-public sealed record SuggestModelRequest(string Name, MotorcycleCategory Category);
-#endregion

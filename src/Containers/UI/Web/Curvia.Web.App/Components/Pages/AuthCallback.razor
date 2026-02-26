@@ -22,9 +22,8 @@
             return;
         }
 
-        var success = await Auth.HandleCallbackAsync(Code, State);
+        var returnUrl = await Auth.HandleCallbackAsync(Code, State);
 
-        // Navigate to the return URL stored in the session, or fall back to home
-        Nav.NavigateTo(success ? "/" : "/auth/login-failed", forceLoad: true);
+        Nav.NavigateTo(returnUrl ?? "/auth/login-failed", forceLoad: true);
     }
 }
