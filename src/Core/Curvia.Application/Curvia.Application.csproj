@@ -11,9 +11,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Templates.Core.Application" Version="8.3.7" />
-    <PackageReference Include="Templates.Core.Caching" Version="8.3.7" />
-    <PackageReference Include="Templates.Core.Tools.DependencyInjection" Version="8.3.7" />
+    <PackageReference Include="Templates.Core.Application" Version="8.4.0" />
+    <PackageReference Include="Templates.Core.Caching" Version="8.4.0" />
+    <PackageReference Include="Templates.Core.Tools.DependencyInjection" Version="8.4.0" />
   </ItemGroup>
 
 </Project>
