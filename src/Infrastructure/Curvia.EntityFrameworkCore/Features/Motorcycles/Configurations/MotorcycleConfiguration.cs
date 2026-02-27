@@ -11,8 +11,9 @@ namespace Curvia.Persistence.EntityFrameworkCore.Features.Motorcycles.Configurat
 /// Author      : Gihed Annabi
 /// Date        : 02-2026
 /// Purpose     : EF Core configuration for <see cref="Motorcycle"/> aggregate.
-///              Single-property VOs (Maker, MotorcycleModel, Nickname) mapped with
-///              HasConversion — one column each, no owned-type overhead.
+///              Single-property VOs (Maker, MotorcycleModel, Nickname, ManufactureYear,
+///              EngineDisplacement) mapped with HasConversion — one column each,
+///              no owned-type overhead.
 /// </summary>
 internal sealed class MotorcycleConfiguration : IEntityTypeConfiguration<Motorcycle>
 {
@@ -27,63 +28,74 @@ internal sealed class MotorcycleConfiguration : IEntityTypeConfiguration<Motorcy
 	{
 		builder.ToTable(DbTableNames.Motorcycles);
 
-		#region IsDefault
-		builder.Property(x => x.IsDefault)
-			.IsRequired()
-			.HasDefaultValue(false)
-			.HasColumnName("IsDefault");
-
-		builder.HasIndex(x => new { x.UserId, x.IsDefault })
-			.HasDatabaseName("IX_Motorcycles_UserId_IsDefault");
+		#region Primary key
+		builder.HasKey(x => x.Id);
+		builder.Property(x => x.Id)
+			.ValueGeneratedNever()
+			.HasConversion(id => id.Value, v => new MotorcycleId(v));
 		#endregion
 
 		#region Maker (VO)
 		builder.Property(x => x.Maker)
 			.IsRequired()
 			.HasConversion(vo => vo.Value, raw => Maker.FromPersistence(raw))
-			.HasColumnName("Maker")
-			.HasMaxLength(100);
+			.HasMaxLength(100)
+			.HasColumnName("Maker");
 		#endregion
 
 		#region Model (VO)
 		builder.Property(x => x.Model)
 			.IsRequired()
 			.HasConversion(vo => vo.Value, raw => MotorcycleModel.FromPersistence(raw))
-			.HasColumnName("Model")
-			.HasMaxLength(150);
+			.HasMaxLength(150)
+			.HasColumnName("Model");
 		#endregion
 
-		#region Primary key
-		builder.HasKey(x => x.Id);
+		#region Year (ManufactureYear VO)
+		builder.Property(x => x.Year)
+			.IsRequired()
+			.HasConversion(vo => vo.Value, raw => ManufactureYear.FromPersistence(raw))
+			.HasColumnName("Year");
+		#endregion
 
-		builder.Property(x => x.Id)
-			.ValueGeneratedNever()
-			.HasConversion(id => id.Value, value => new MotorcycleId(value));
+		#region EngineCc (nullable EngineDisplacement VO)
+		builder.Property(x => x.EngineCc)
+			.HasConversion(vo => vo != null ? (int?)vo.Cc : null, raw => raw.HasValue ? EngineDisplacement.FromPersistence(raw.Value) : null)
+			.HasColumnName("EngineCc");
+		#endregion
+
+		#region Nickname (nullable VO)
+		builder.Property(x => x.Nickname)
+			.HasConversion(vo => vo != null ? vo.Value : null, raw => raw != null ? Nickname.FromPersistence(raw) : null)
+			.HasMaxLength(100)
+			.HasColumnName("Nickname");
+		#endregion
+
+		#region IsDefault
+		builder.Property(x => x.IsDefault)
+			.IsRequired()
+			.HasDefaultValue(false)
+			.HasColumnName("IsDefault");
 		#endregion
 
 		#region Soft delete
 		builder.Property(x => x.IsDeleted)
 			.IsRequired()
-			.HasDefaultValue(false)
-			.HasColumnName("IsDeleted");
+			.HasDefaultValue(false);
 
-		builder.Property(x => x.DeletedOnUtc)
-			.HasColumnName("DeletedOnUtc");
-
-		builder.Property(x => x.DeletedBy)
-			.HasMaxLength(256)
-			.HasColumnName("DeletedBy");
+		builder.Property(x => x.DeletedOnUtc).HasColumnName("DeletedOnUtc");
+		builder.Property(x => x.DeletedBy).HasMaxLength(256);
 
 		builder.HasQueryFilter(x => !x.IsDeleted);
 		#endregion
 
-		#region Foreign key — User
+		#region UserId FK (no navigation)
 		builder.Property(x => x.UserId)
 			.IsRequired()
-			.HasConversion(id => id.Value, value => new UserId(value))
+			.HasConversion(id => id.Value, v => new UserId(v))
 			.HasColumnName("UserId");
 
-		builder.HasOne<User>()
+		builder.HasOne<Curvia.Domain.Features.Users.Aggregate.User>()
 			.WithMany()
 			.HasForeignKey(x => x.UserId)
 			.OnDelete(DeleteBehavior.Restrict)
@@ -93,20 +105,14 @@ internal sealed class MotorcycleConfiguration : IEntityTypeConfiguration<Motorcy
 			.HasDatabaseName("IX_Motorcycles_UserId");
 		#endregion
 
-		#region Nickname (nullable VO)
-		builder.Property(x => x.Nickname)
-			.HasConversion(vo => vo != null ? vo.Value : null, raw => raw != null ? Nickname.FromPersistence(raw) : null)
-			.HasColumnName("Nickname")
-			.HasMaxLength(100);
-		#endregion
-
-		#region Year / EngineCc (plain primitives — no VO needed)
-		builder.Property(x => x.Year)
-			.IsRequired()
-			.HasColumnName("Year");
-
-		builder.Property(x => x.EngineCc)
-			.HasColumnName("EngineCc");
+		#region Audit
+		builder.OwnsOne(x => x.Audit, audit =>
+		{
+			audit.Property(a => a.CreatedOnUtc).HasColumnName("CreatedOnUtc");
+			audit.Property(a => a.CreatedBy).HasMaxLength(128).HasColumnName("CreatedBy");
+			audit.Property(a => a.ModifiedOnUtc).HasColumnName("ModifiedOnUtc");
+			audit.Property(a => a.ModifiedBy).HasMaxLength(128).HasColumnName("ModifiedBy");
+		});
 		#endregion
 	}
 	#endregion
