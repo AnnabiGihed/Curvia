@@ -47,8 +47,8 @@ internal sealed class GetUserSavedRoutesQueryHandler : IQueryHandler<GetUserSave
 			.Select(sr => new SavedRouteDto(
 				SavedRouteId: sr.Id.Value,
 				RouteId: sr.RouteId.Value,
-				Name: sr.Name.Value,
-				Notes: sr.Notes?.Value,
+				Name: sr.Title.Value,
+				Notes: sr.Description?.Value,
 				Visibility: sr.Visibility,
 				SavedAtUtc: sr.Audit.CreatedOnUtc,
 				Reviews: sr.Reviews

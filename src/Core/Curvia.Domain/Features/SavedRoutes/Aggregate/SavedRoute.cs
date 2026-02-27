@@ -25,7 +25,7 @@ public sealed class SavedRoute : AggregateRoot<SavedRouteId>
 	/// Max 1,000 chars.
 	/// Never shown publicly.
 	/// </summary>
-	public RouteNotes? Notes { get; private set; }
+	public SavedRouteDescription? Description { get; private set; }
 
 	/// <summary>
 	/// The user who saved this route.
@@ -37,7 +37,7 @@ public sealed class SavedRoute : AggregateRoot<SavedRouteId>
 	/// User-given name for this saved route.
 	/// Max 200 chars.
 	/// </summary>
-	public RouteName Name { get; private set; } = default!;
+	public SavedRouteTitle Title { get; private set; } = default!;
 
 	/// <summary>
 	/// Cross-aggregate reference to the generated Route.
@@ -74,11 +74,11 @@ public sealed class SavedRoute : AggregateRoot<SavedRouteId>
 	/// <param name="name">Validated route name.</param>
 	/// <param name="notes">Optional validated notes.</param>
 	/// <param name="visibility">Route visibility setting.</param>
-	private SavedRoute(SavedRouteId id, UserId userId, RouteId routeId, RouteName name, RouteNotes? notes, SavedRouteVisibility visibility)
+	private SavedRoute(SavedRouteId id, UserId userId, RouteId routeId, SavedRouteTitle name, SavedRouteDescription? notes, SavedRouteVisibility visibility)
 		: base(id)
 	{
-		Name = name;
-		Notes = notes;
+		Title = name;
+		Description = notes;
 		UserId = userId;
 		RouteId = routeId;
 		Visibility = visibility;
@@ -103,14 +103,14 @@ public sealed class SavedRoute : AggregateRoot<SavedRouteId>
 		if (routeId is null)
 			return Result.Failure<SavedRoute>(new Error("SavedRoute.RouteId.Null", "RouteId is required."));
 
-		var nameResult = RouteName.Create(name);
+		var nameResult = SavedRouteTitle.Create(name);
 		if (nameResult.IsFailure)
 			return Result.Failure<SavedRoute>(nameResult.Error, nameResult.ResultExceptionType);
 
-		RouteNotes? notesVo = null;
+		SavedRouteDescription? notesVo = null;
 		if (notes is not null)
 		{
-			var notesResult = RouteNotes.Create(notes);
+			var notesResult = SavedRouteDescription.Create(notes);
 			if (notesResult.IsFailure)
 				return Result.Failure<SavedRoute>(notesResult.Error, notesResult.ResultExceptionType);
 
@@ -142,22 +142,22 @@ public sealed class SavedRoute : AggregateRoot<SavedRouteId>
 	/// <returns>Success when updated; otherwise failure with domain error.</returns>
 	public Result Rename(string name, string? notes)
 	{
-		var nameResult = RouteName.Create(name);
+		var nameResult = SavedRouteTitle.Create(name);
 		if (nameResult.IsFailure)
 			return Result.Failure(nameResult.Error, nameResult.ResultExceptionType);
 
-		RouteNotes? notesVo = null;
+		SavedRouteDescription? notesVo = null;
 		if (notes is not null)
 		{
-			var notesResult = RouteNotes.Create(notes);
+			var notesResult = SavedRouteDescription.Create(notes);
 			if (notesResult.IsFailure)
 				return Result.Failure(notesResult.Error, notesResult.ResultExceptionType);
 
 			notesVo = notesResult.Value;
 		}
 
-		Name = nameResult.Value;
-		Notes = notesVo;
+		Title = nameResult.Value;
+		Description = notesVo;
 
 		return Result.Success();
 	}

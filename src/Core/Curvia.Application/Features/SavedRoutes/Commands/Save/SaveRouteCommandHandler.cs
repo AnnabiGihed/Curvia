@@ -68,7 +68,7 @@ internal sealed class SaveRouteCommandHandler : ICommandHandler<SaveRouteCommand
 
 		await _savedRouteRepository.AddAsync(savedRoute, cancellationToken);
 
-		return Result.Success(new SaveRouteResponse(SavedRouteId: savedRoute.Id.Value, RouteId: savedRoute.RouteId.Value, Name: savedRoute.Name.Value, Visibility: savedRoute.Visibility, CreatedAtUtc: savedRoute.Audit.CreatedOnUtc));
+		return Result.Success(new SaveRouteResponse(SavedRouteId: savedRoute.Id.Value, RouteId: savedRoute.RouteId.Value, Name: savedRoute.Title.Value, Visibility: savedRoute.Visibility, CreatedAtUtc: savedRoute.Audit.CreatedOnUtc));
 	}
 	#endregion
 }

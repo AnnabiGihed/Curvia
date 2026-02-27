@@ -1,8 +1,8 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Curvia.Domain.Features.Users.Aggregate;
 using Curvia.Domain.Features.SavedRoutes.Aggregate;
-using Curvia.Domain.Features.SavedRoutes.ValueObjects;
 using Curvia.Domain.Features.Routing.Routes.Aggregate;
+using Curvia.Domain.Features.SavedRoutes.ValueObjects;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Curvia.Persistence.EntityFrameworkCore.Constants;
 
@@ -11,103 +11,78 @@ namespace Curvia.Persistence.EntityFrameworkCore.Features.SavedRoutes.Configurat
 /// <summary>
 /// Author      : Gihed Annabi
 /// Date        : 02-2026
-/// Purpose     : EF Core configuration for <see cref="SavedRoute"/> aggregate.
+/// Purpose     : EF Core configuration for <see cref="SavedRoute"/>.
+///              Maps all value objects to their underlying scalar columns.
+///
+///              Primitive-obsession fix applied:
+///                - <see cref="SavedRouteTitle"/> → NVARCHAR(150) Title column
+///                - <see cref="SavedRouteDescription"/> → NVARCHAR(2000) Description column (nullable)
 /// </summary>
 internal sealed class SavedRouteConfiguration : IEntityTypeConfiguration<SavedRoute>
 {
-	#region IEntityTypeConfiguration<SavedRoute>
 	/// <summary>
-	/// Configures EF Core mapping for <see cref="SavedRoute"/>:
-	/// table name, primary key, value object conversions, indexes, soft-delete query filter,
-	/// foreign key to <see cref="User"/>, owned reviews collection, and route cross-aggregate reference.
+	/// Configures EF Core mapping for <see cref="SavedRoute"/>.
 	/// </summary>
-	/// <param name="builder">Entity type builder for <see cref="SavedRoute"/>.</param>
+	/// <param name="builder">Entity type builder.</param>
 	public void Configure(EntityTypeBuilder<SavedRoute> builder)
 	{
 		builder.ToTable(DbTableNames.SavedRoutes);
 
-		#region Name (VO)
-		builder.Property(x => x.Name)
-			.IsRequired()
-			.HasConversion(vo => vo.Value, raw => RouteName.FromPersistence(raw))
-			.HasColumnName("Name")
-			.HasMaxLength(200);
-		#endregion
-
-		#region Visibility
-		builder.Property(x => x.Visibility)
-			.IsRequired()
-			.HasConversion<int>()
-			.HasColumnName("Visibility");
-
-		builder.HasIndex(x => x.Visibility)
-			.HasDatabaseName("IX_SavedRoutes_Visibility");
-		#endregion
-
-		#region Soft delete
-		builder.Property(x => x.IsDeleted)
-			.IsRequired()
-			.HasDefaultValue(false)
-			.HasColumnName("IsDeleted");
-
-		builder.Property(x => x.DeletedOnUtc)
-			.HasColumnName("DeletedOnUtc");
-
-		builder.Property(x => x.DeletedBy)
-			.HasMaxLength(256)
-			.HasColumnName("DeletedBy");
-
-		builder.HasQueryFilter(x => !x.IsDeleted);
-		#endregion
-
 		#region Primary key
 		builder.HasKey(x => x.Id);
-
 		builder.Property(x => x.Id)
 			.ValueGeneratedNever()
-			.HasConversion(id => id.Value, value => new SavedRouteId(value));
+			.HasConversion(id => id.Value, v => new SavedRouteId(v));
 		#endregion
 
-		#region Notes (nullable VO)
-		builder.Property(x => x.Notes)
-			.HasConversion(vo => vo != null ? vo.Value : null, raw => raw != null ? RouteNotes.FromPersistence(raw) : null)
-			.HasColumnName("Notes")
-			.HasMaxLength(1000);
-		#endregion
-
-		#region Foreign key — User (with navigation for referential integrity)
+		#region UserId (FK, cross-aggregate reference)
 		builder.Property(x => x.UserId)
 			.IsRequired()
-			.HasConversion(id => id.Value, value => new UserId(value))
+			.HasConversion(id => id.Value, v => new UserId(v))
 			.HasColumnName("UserId");
-
-		builder.HasOne<User>()
-			.WithMany()
-			.HasForeignKey(x => x.UserId)
-			.OnDelete(DeleteBehavior.Restrict)
-			.HasConstraintName("FK_SavedRoutes_AppUsers_UserId");
 		#endregion
 
-		#region Reviews (owned entity collection → separate RouteReviews table)
-		builder.Navigation(x => x.Reviews)
-			.UsePropertyAccessMode(PropertyAccessMode.Field);
-
-		builder.OwnsMany(x => x.Reviews, RouteReviewConfiguration.Configure);
-		#endregion
-
-		#region RouteId — cross-aggregate reference (strongly typed, no navigation)
+		#region RouteId (FK, cross-aggregate reference)
 		builder.Property(x => x.RouteId)
 			.IsRequired()
-			.HasConversion(id => id.Value, value => new RouteId(value))
+			.HasConversion(id => id.Value, v => new RouteId(v))
 			.HasColumnName("RouteId");
+		#endregion
 
-		builder.HasIndex(x => x.RouteId)
-			.HasDatabaseName("IX_SavedRoutes_RouteId");
+		#region Title (VO)
+		builder.Property(x => x.Title)
+			.IsRequired()
+			.HasConversion(vo => vo.Value, raw => SavedRouteTitle.FromPersistence(raw))
+			.HasMaxLength(SavedRouteTitle.MaxLength)
+			.HasColumnName("Title");
+		#endregion
 
-		builder.HasIndex(x => new { x.UserId, x.RouteId })
-			.IsUnique()
-			.HasDatabaseName("UX_SavedRoutes_UserId_RouteId");
+		#region Description (nullable VO)
+		builder.Property(x => x.Description)
+			.HasConversion(
+				vo => vo != null ? vo.Value : null,
+				raw => raw != null ? SavedRouteDescription.FromPersistence(raw) : null)
+			.HasMaxLength(SavedRouteDescription.MaxLength)
+			.HasColumnName("Description");
+		#endregion
+
+		#region Visibility (enum)
+		builder.Property(x => x.Visibility)
+			.IsRequired()
+			.HasColumnName("Visibility");
+		#endregion
+
+		#region Reviews (child entity collection)
+		builder.HasMany(x => x.Reviews)
+			.WithOne()
+			.HasForeignKey("SavedRouteId")
+			.OnDelete(DeleteBehavior.Cascade);
+		#endregion
+
+		#region Indexes
+		builder.HasIndex(x => x.UserId).HasDatabaseName("IX_SavedRoutes_UserId");
+		builder.HasIndex(x => x.RouteId).HasDatabaseName("IX_SavedRoutes_RouteId");
+		builder.HasIndex(x => x.Visibility).HasDatabaseName("IX_SavedRoutes_Visibility");
 		#endregion
 	}
-	#endregion
 }

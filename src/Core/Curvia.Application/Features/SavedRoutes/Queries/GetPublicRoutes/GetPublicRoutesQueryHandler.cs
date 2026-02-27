@@ -56,7 +56,7 @@ internal sealed class GetPublicRoutesQueryHandler : IQueryHandler<GetPublicRoute
 				SavedRouteId: sr.Id.Value,
 				RouteId: sr.RouteId.Value,
 				OwnerUserId: sr.UserId.Value,
-				Name: sr.Name.Value,
+				Name: sr.Title.Value,
 				SavedAtUtc: sr.Audit.CreatedOnUtc,
 				Reviews: sr.Reviews
 					.Where(r => !r.IsDeleted)
