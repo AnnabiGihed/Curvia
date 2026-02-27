@@ -14,12 +14,6 @@ namespace Curvia.Domain.Features.Users.Repositories;
 public interface IUserRepository : IAsyncCommandRepository<User, UserId>
 {
 	/// <summary>
-	/// Finds a user by their application-level ID.
-	/// Returns null if not found or soft-deleted.
-	/// </summary>
-	Task<User?> FindByIdAsync(UserId id, CancellationToken cancellationToken = default);
-
-	/// <summary>
 	/// Returns true if any active user has the given email address.
 	/// Used for uniqueness validation during manual user creation.
 	/// </summary>

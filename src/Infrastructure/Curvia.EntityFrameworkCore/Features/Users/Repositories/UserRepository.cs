@@ -25,13 +25,6 @@ internal sealed class UserRepository : BaseAsyncCommandRepository<User, UserId>,
 
 	#region IUserRepository
 	/// <inheritdoc/>
-	public async Task<User?> FindByIdAsync(UserId id, CancellationToken cancellationToken = default)
-	{
-		return await DbContext.Set<User>()
-			.FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
-	}
-
-	/// <inheritdoc/>
 	public async Task<bool> EmailExistsAsync(UserEmail email, CancellationToken cancellationToken = default)
 	{
 		return await DbContext.Set<User>()
