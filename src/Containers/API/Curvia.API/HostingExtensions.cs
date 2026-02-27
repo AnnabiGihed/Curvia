@@ -1,5 +1,4 @@
-﻿using Curvia.API.Jobs;
-using Curvia.API.Middleware.Identity;
+﻿using Curvia.API.Middleware.Identity;
 using Curvia.Persistence.EntityFrameworkCore.Features.MotorcycleCatalog.Seed;
 using Curvia.Persistence.EntityFrameworkCore.PersistenceContext;
 using Microsoft.EntityFrameworkCore;
@@ -65,7 +64,7 @@ internal static class HostingExtensions
 		app.MapControllers();
 		#endregion
 
-		app.RegisterAwarenessJobs();
+		//app.RegisterAwarenessJobs(); has to be registered in infrastructure layer
 
 		return app;
 	}

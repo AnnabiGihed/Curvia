@@ -104,7 +104,7 @@ public sealed class OsmHazardProvider : IHazardDataProvider
 			var hazardType = ClassifyHazard(tags);
 			var description = ExtractDescription(tags);
 
-			result.Add(new HazardRecord(externalId, lat, lon, hazardType, description));
+			result.Add(new HazardRecord(externalId, lat, lon, "osm", hazardType, description));
 		}
 
 		return result;

@@ -74,6 +74,7 @@ public sealed class OpenSpeedCamProvider : ISpeedCameraDataProvider
 				Latitude: r.Latitude,
 				Longitude: r.Longitude,
 				SpeedLimitKmh: r.SpeedKmh,
+				Source: ProviderName,
 				Direction: r.Direction))
 			.ToList();
 	}

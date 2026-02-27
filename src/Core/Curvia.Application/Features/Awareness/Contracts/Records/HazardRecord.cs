@@ -5,4 +5,4 @@ namespace Curvia.Application.Features.Awareness.Contracts.Records;
 /// <summary>
 /// Raw hazard record from a data provider.
 /// </summary>
-public sealed record HazardRecord(string ExternalId, double Latitude, double Longitude, HazardType HazardType, string? Description);
+public sealed record HazardRecord(string ExternalId, double Latitude, double Longitude, string Source, HazardType HazardType, string? Description);

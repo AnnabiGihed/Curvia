@@ -13,7 +13,7 @@ namespace Curvia.Infrastructure.Features.Awareness.Providers.Osm;
 ///
 ///              Keys are ISO 3166-1 alpha-2 country codes.
 /// </summary>
-internal static class CountryBoundingBoxes
+public static class CountryBoundingBoxes
 {
 	private static readonly Dictionary<string, (double S, double W, double N, double E)> _boxes = new(
 		StringComparer.OrdinalIgnoreCase)

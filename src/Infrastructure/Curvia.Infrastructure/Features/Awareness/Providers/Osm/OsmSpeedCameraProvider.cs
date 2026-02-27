@@ -109,6 +109,7 @@ public sealed class OsmSpeedCameraProvider : ISpeedCameraDataProvider
 				Latitude: lat,
 				Longitude: lon,
 				SpeedLimitKmh: speedLimit,
+				Source: "osm",
 				Direction: direction));
 		}
 

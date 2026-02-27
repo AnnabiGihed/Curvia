@@ -1,10 +1,11 @@
 ﻿using MediatR;
 using Hangfire;
 using Microsoft.AspNetCore.Builder;
-using Curvia.Application.Features.Awareness.Commands.SyncSpeedCameras;
+using Curvia.Infrastructure.Features.Awareness.Providers.Osm;
 using Curvia.Application.Features.Awareness.Commands.SyncHazards;
 using Curvia.Application.Features.Awareness.Commands.SyncRoadWorks;
 using Curvia.Application.Features.Awareness.Commands.SyncIncidents;
+using Curvia.Application.Features.Awareness.Commands.SyncSpeedCameras;
 
 namespace Curvia.Infrastructure.Jobs;
 

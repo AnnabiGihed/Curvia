@@ -33,7 +33,7 @@ internal sealed class SyncHazardsCommandHandler : ICommandHandler<SyncHazardsCom
 		foreach (var record in records)
 		{
 			var existing = await _repository.FindByExternalIdAsync(
-				record.ExternalId, record.Source(/* workaround — provider sets source */), country, ct);
+				record.ExternalId, record.Source, country, ct);
 
 			// Note: HazardRecord has no Source field — the provider stamps it.
 			// In practice, the provider wraps the record in a named source.
