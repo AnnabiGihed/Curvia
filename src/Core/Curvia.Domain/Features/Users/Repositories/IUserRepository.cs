@@ -24,5 +24,5 @@ public interface IUserRepository : IAsyncCommandRepository<User, UserId>
 	/// Returns null if no user with that KeycloakId exists.
 	/// Used by the authentication middleware to resolve the app user from a JWT token.
 	/// </summary>
-	Task<User?> FindByKeycloakIdAsync(KeycloakId keycloakId, CancellationToken cancellationToken = default);
+	Task<User?> FindByKeycloakIdAsync(KeycloakSubject keycloakId, CancellationToken cancellationToken = default);
 }

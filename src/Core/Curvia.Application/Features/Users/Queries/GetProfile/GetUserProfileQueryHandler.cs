@@ -36,7 +36,7 @@ internal sealed class GetUserProfileQueryHandler : IQueryHandler<GetUserProfileQ
 		if (user is null)
 			return Result.Failure<UserProfileDto>(new Error("User.NotFound", "The user profile was not found."), ResultExceptionType.NotFound);
 
-		var dto = new UserProfileDto(UserId: user.Id.Value, Email: user.Email.Value, DisplayName: user.DisplayName.Value, Locale: user.Locale?.Value, MemberSinceUtc: user.Audit.CreatedOnUtc);
+		var dto = new UserProfileDto(UserId: user.Id.Value, Email: user.Email.Value, DisplayName: user.DisplayName.Value, Locale: user.Locale, MemberSinceUtc: user.Audit.CreatedOnUtc);
 
 		return Result.Success(dto);
 	}

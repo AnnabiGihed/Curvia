@@ -5,98 +5,73 @@ namespace Curvia.Domain.Features.Users.ValueObjects;
 /// <summary>
 /// Author      : Gihed Annabi
 /// Date        : 02-2026
-/// Purpose     : Strongly-typed value object for a user's public display name.
-///              Sourced from the Keycloak "preferred_username" claim on first login.
-///              User may override via profile settings.
-///              Max 100 chars, trimmed, non-empty.
+/// Purpose     : Strongly-typed display name for a Curvia user.
+///              Sourced from the Keycloak JWT token's preferred_username or name claim
+///              during JIT provisioning.  May be updated when the user changes their
+///              display name in Keycloak.
+///              Replaces the raw <c>string DisplayName</c> (or Username) field on the
+///              <c>User</c> aggregate.
+///              Persisted as NVARCHAR(100).
 /// </summary>
 public sealed class DisplayName : CSharpFunctionalExtensions.ValueObject<DisplayName>
 {
+	#region Constants
+	/// <summary>Maximum allowed character length for a display name.</summary>
+	public const int MaxLength = 100;
+	#endregion
+
 	#region Properties
-	/// <summary>
-	/// Gets the trimmed display name value.
-	/// </summary>
+	/// <summary>The user's display name. Never null, empty, or whitespace-only.</summary>
 	public string Value { get; }
 	#endregion
 
 	#region Constructors
-	/// <summary>
-	/// Parameterless constructor required by some ORMs.
-	/// </summary>
-	private DisplayName()
-	{
-		Value = default!;
-	}
+	/// <summary>For EF Core materialisation only.</summary>
+	private DisplayName() { Value = default!; }
 
-	/// <summary>
-	/// Creates a new <see cref="DisplayName"/> instance.
-	/// </summary>
-	/// <param name="value">Normalized display name value.</param>
-	private DisplayName(string value)
-	{
-		Value = value;
-	}
+	/// <summary>Initialises a <see cref="DisplayName"/> with a pre-validated value.</summary>
+	/// <param name="value">Validated display name.</param>
+	private DisplayName(string value) => Value = value;
 	#endregion
 
 	#region Factory
 	/// <summary>
-	/// Creates a new <see cref="DisplayName"/> after validating:
-	/// - Non-empty input
-	/// - Maximum length of 100 characters
-	/// The stored value is trimmed.
+	/// Creates a validated <see cref="DisplayName"/>.
 	/// </summary>
-	/// <param name="value">Raw display name input.</param>
-	/// <returns>A successful result containing <see cref="DisplayName"/>, or a failure with domain error.</returns>
-	public static Result<DisplayName> Create(string value)
+	/// <param name="value">Raw display name. Will be trimmed. Must not be null or whitespace and must not exceed <see cref="MaxLength"/> characters.</param>
+	/// <returns>Success containing the <see cref="DisplayName"/>; otherwise failure.</returns>
+	public static Result<DisplayName> Create(string? value)
 	{
 		if (string.IsNullOrWhiteSpace(value))
-			return Result.Failure<DisplayName>(new Error("DisplayName.Empty", "Display name must not be empty."));
+			return Result.Failure<DisplayName>(new Error("DisplayName.Required", "Display name is required."));
 
-		if (value.Length > 100)
-			return Result.Failure<DisplayName>(new Error("DisplayName.TooLong", "Display name must not exceed 100 characters."));
+		var trimmed = value.Trim();
 
-		return Result.Success(new DisplayName(value.Trim()));
+		if (trimmed.Length > MaxLength)
+			return Result.Failure<DisplayName>(new Error("DisplayName.TooLong", $"Display name exceeds the maximum length of {MaxLength} characters."));
+
+		return Result.Success(new DisplayName(trimmed));
 	}
 
 	/// <summary>
-	/// For EF Core materialization only. Bypasses domain validation — DB values are assumed valid.
+	/// Bypasses validation — used when materialising from a trusted persistence source.
 	/// </summary>
-	/// <param name="value">Persisted display name value.</param>
-	/// <returns><see cref="DisplayName"/> instance.</returns>
-	public static DisplayName FromPersistence(string value)
-	{
-		return new(value);
-	}
+	/// <param name="value">Stored display name string.</param>
+	/// <returns>A <see cref="DisplayName"/> without validation.</returns>
+	public static DisplayName FromPersistence(string value) => new(value);
 	#endregion
 
 	#region Equality
-	/// <summary>
-	/// Computes hash code using ordinal string comparison.
-	/// </summary>
-	protected override int GetHashCodeCore()
-	{
-		return StringComparer.Ordinal.GetHashCode(Value);
-	}
+	/// <inheritdoc/>
+	protected override bool EqualsCore(DisplayName other) =>
+		string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
-	/// <summary>
-	/// Compares two <see cref="DisplayName"/> instances using ordinal string comparison.
-	/// </summary>
-	/// <param name="other">Other display name instance.</param>
-	/// <returns>True if values are equal; otherwise false.</returns>
-	protected override bool EqualsCore(DisplayName other)
-	{
-		return string.Equals(Value, other.Value, StringComparison.Ordinal);
-	}
+	/// <inheritdoc/>
+	protected override int GetHashCodeCore() => Value.ToLowerInvariant().GetHashCode();
 	#endregion
 
 	#region Overrides
-	/// <summary>
-	/// Returns the display name as string.
-	/// </summary>
-	/// <returns>Display name string.</returns>
-	public override string ToString()
-	{
-		return Value;
-	}
+	/// <inheritdoc/>
+	public override string ToString() => Value;
 	#endregion
 }

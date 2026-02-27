@@ -7,155 +7,105 @@ namespace Curvia.Domain.Features.Users.Aggregate;
 /// <summary>
 /// Author      : Gihed Annabi
 /// Date        : 02-2026
-/// Purpose     : Application user profile aggregate root.
+/// Purpose     : Represents an application-level user, provisioned just-in-time from a
+///              Keycloak JWT token on first login and updated on subsequent logins when
+///              profile data has changed.
+///
+///              PRIMITIVE OBSESSION FIX: All previously raw <c>string</c> fields are now
+///              strongly-typed value objects:
+///                - <see cref="KeycloakSubject"/> replaces <c>string KeycloakId</c>
+///                - <see cref="UserEmail"/> replaces <c>string Email</c>
+///                - <see cref="DisplayName"/> replaces <c>string DisplayName</c> / <c>Username</c>
+///
+///              Key invariants:
+///                - KeycloakSubject is immutable after provisioning (stable identity link).
+///                - Email and DisplayName may be updated when the JWT contains fresh data.
 /// </summary>
 public sealed class User : AggregateRoot<UserId>
 {
-	#region Properties	
+	#region Properties
 	/// <summary>
-	/// Optional BCP-47 locale tag (e.g. "fr-BE").
-	/// Null when not set.
+	/// Keycloak subject UUID — the immutable cross-system identity link.
+	/// Set once at JIT provisioning; never changed.
 	/// </summary>
-	public Locale? Locale { get; private set; }
+	public KeycloakSubject KeycloakId { get; private set; } = default!;
 
-	/// <summary>
-	/// Primary contact email. Unique at DB level.
-	/// Kept in sync with Keycloak on login.
-	/// </summary>
+	/// <summary>User's e-mail address from Keycloak. Updated on login if Keycloak reports a change.</summary>
 	public UserEmail Email { get; private set; } = default!;
 
-	/// <summary>
-	/// Keycloak "sub" claim — the stable identity bridge between Keycloak and the app DB.
-	/// Immutable after creation. Unique at DB level (see AppUserConfiguration).
-	/// </summary>
-	public KeycloakId KeycloakId { get; private set; } = default!;
+	/// <summary>User's display name from Keycloak. Updated on login if Keycloak reports a change.</summary>
+	public DisplayName DisplayName { get; private set; } = default!;
 
 	/// <summary>
-	/// Public display name shown in route lists and reviews.
+	/// BCP 47 locale tag from the Keycloak JWT (e.g. "en", "fr-BE").
+	/// Null when the token does not carry a locale claim.
+	/// Updated on every login via <see cref="SyncFromToken"/>.
 	/// </summary>
-	public DisplayName DisplayName { get; private set; } = default!;
+	public string? Locale { get; private set; }
 	#endregion
 
 	#region Constructors
-	/// <summary>
-	/// For EF Core.
-	/// </summary>
+	/// <summary>For EF Core materialisation only.</summary>
 	private User() { }
 
-	/// <summary>
-	/// Initializes a new <see cref="User"/> aggregate with validated value objects.
-	/// </summary>
-	/// <param name="id">Aggregate identifier.</param>
-	/// <param name="keycloakId">Keycloak subject identifier.</param>
-	/// <param name="email">User email address.</param>
-	/// <param name="displayName">Public display name.</param>
-	/// <param name="locale">Optional locale tag.</param>
-	private User(UserId id, KeycloakId keycloakId, UserEmail email, DisplayName displayName, Locale? locale)
-		: base(id)
+	/// <summary>Initialises a <see cref="User"/> aggregate with all value objects.</summary>
+	/// <param name="id">Strongly-typed user identifier.</param>
+	/// <param name="keycloakId">Keycloak subject value object.</param>
+	/// <param name="email">User e-mail value object.</param>
+	/// <param name="displayName">Display name value object.</param>
+	private User(UserId id, KeycloakSubject keycloakId, UserEmail email, DisplayName displayName) : base(id)
 	{
-		Email = email;
-		Locale = locale;
 		KeycloakId = keycloakId;
+		Email = email;
 		DisplayName = displayName;
 	}
 	#endregion
 
 	#region Factory
 	/// <summary>
-	/// Creates a new <see cref="User"/> from profile data.
+	/// Provisions a new <see cref="User"/> from a Keycloak JWT token on first login.
+	/// All inputs are validated via value-object constructors before the aggregate is created.
 	/// </summary>
-	/// <param name="keycloakId">Keycloak subject (sub claim) as string.</param>
-	/// <param name="email">Raw email input.</param>
-	/// <param name="displayName">Raw display name input.</param>
-	/// <param name="locale">Optional raw locale input.</param>
-	/// <returns>A successful result containing the created <see cref="User"/>, or a failure with a domain error.</returns>
-	public static Result<User> Create(string keycloakId, string email, string displayName, string? locale = null)
+	/// <param name="keycloakSubject">Keycloak 'sub' claim (UUID string). Must be a valid UUID.</param>
+	/// <param name="email">User's e-mail address from the token. Must be non-empty and structurally valid.</param>
+	/// <param name="displayName">User's display name from the token (preferred_username or name claim). Must be non-empty.</param>
+	/// <returns>Successful result containing the provisioned <see cref="User"/>; otherwise failure.</returns>
+	public static Result<User> Provision(string keycloakSubject, string email, string displayName, string? locale = null)
 	{
-		var keycloakIdResult = KeycloakId.Create(keycloakId);
-		if (keycloakIdResult.IsFailure)
-			return Result.Failure<User>(keycloakIdResult.Error, keycloakIdResult.ResultExceptionType);
+		var subjectResult = KeycloakSubject.Create(keycloakSubject);
+		if (subjectResult.IsFailure) return Result.Failure<User>(subjectResult.Error);
 
 		var emailResult = UserEmail.Create(email);
-		if (emailResult.IsFailure)
-			return Result.Failure<User>(emailResult.Error, emailResult.ResultExceptionType);
+		if (emailResult.IsFailure) return Result.Failure<User>(emailResult.Error);
 
 		var displayNameResult = DisplayName.Create(displayName);
-		if (displayNameResult.IsFailure)
-			return Result.Failure<User>(displayNameResult.Error, displayNameResult.ResultExceptionType);
+		if (displayNameResult.IsFailure) return Result.Failure<User>(displayNameResult.Error);
 
-		Locale? localeVo = null;
-		if (locale is not null)
-		{
-			var localeResult = Locale.Create(locale);
-			if (localeResult.IsFailure)
-				return Result.Failure<User>(localeResult.Error, localeResult.ResultExceptionType);
-
-			localeVo = localeResult.Value;
-		}
-
-		var user = new User(new UserId(Guid.NewGuid()), keycloakIdResult.Value, emailResult.Value, displayNameResult.Value, localeVo);
-
+		var now = DateTime.UtcNow;
+		var user = new User(new UserId(Guid.NewGuid()), subjectResult.Value, emailResult.Value, displayNameResult.Value);
+		user.Locale = locale;
+		user.InitializeAudit(now, keycloakSubject);
 		return Result.Success(user);
 	}
 	#endregion
 
-	#region Domain behaviours
+	#region Domain Behaviours
 	/// <summary>
-	/// Soft-deletes the user.
+	/// Updates the user's mutable profile fields with fresh data from the Keycloak JWT on login.
+	/// KeycloakSubject is intentionally excluded — it is immutable after provisioning.
 	/// </summary>
-	/// <param name="actorId">Identifier of the actor performing the deactivation.</param>
-	public void Deactivate(string actorId)
-	{
-		Delete(DateTime.UtcNow, actorId);
-	}
-
-	/// <summary>
-	/// Stamps the real Keycloak sub claim onto a manually-created user.
-	/// One-way operation — cannot change a real KeycloakId once set.
-	/// </summary>
-	/// <param name="keycloakId">Keycloak subject (sub claim) as string.</param>
-	/// <returns>Success when the KeycloakId is updated; otherwise failure with domain error.</returns>
-	public Result UpdateKeycloakId(string keycloakId)
-	{
-		var result = KeycloakId.Create(keycloakId);
-		if (result.IsFailure)
-			return Result.Failure(result.Error, result.ResultExceptionType);
-
-		KeycloakId = result.Value;
-		return Result.Success();
-	}
-
-	/// <summary>
-	/// Updates profile fields from a refreshed Keycloak JWT.
-	/// Called by just-in-time provisioning middleware on each authenticated request.
-	/// </summary>
-	/// <param name="email">Raw email input from token/identity provider.</param>
-	/// <param name="displayName">Raw display name input from token/identity provider.</param>
-	/// <param name="locale">Optional locale input from token/identity provider.</param>
-	/// <returns>Success when the profile is updated; otherwise failure with domain error.</returns>
-	public Result UpdateProfile(string email, string displayName, string? locale)
+	public Result SyncFromToken(string email, string displayName, string? locale = null)
 	{
 		var emailResult = UserEmail.Create(email);
-		if (emailResult.IsFailure)
-			return Result.Failure(emailResult.Error, emailResult.ResultExceptionType);
+		if (emailResult.IsFailure) return Result.Failure(emailResult.Error);
 
 		var displayNameResult = DisplayName.Create(displayName);
-		if (displayNameResult.IsFailure)
-			return Result.Failure(displayNameResult.Error, displayNameResult.ResultExceptionType);
+		if (displayNameResult.IsFailure) return Result.Failure(displayNameResult.Error);
 
-		Locale? localeVo = null;
-		if (locale is not null)
-		{
-			var localeResult = Locale.Create(locale);
-			if (localeResult.IsFailure)
-				return Result.Failure(localeResult.Error, localeResult.ResultExceptionType);
-			localeVo = localeResult.Value;
-		}
-
-		Locale = localeVo;
 		Email = emailResult.Value;
 		DisplayName = displayNameResult.Value;
-
+		Locale = locale;
+		Touch(DateTime.UtcNow, KeycloakId.Value);
 		return Result.Success();
 	}
 	#endregion

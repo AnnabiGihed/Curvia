@@ -52,7 +52,7 @@ public sealed class JitProvisioningMiddleware
 		var email = currentUser.Email ?? $"{keycloakId}@unknown.invalid";
 		var displayName = currentUser.DisplayName ?? currentUser.Username ?? keycloakId;
 
-		var result = User.Create(keycloakId, email, displayName, locale);
+		var result = User.Provision(keycloakId, email, displayName, locale);
 
 		if (result.IsFailure)
 			throw new InvalidOperationException($"JIT User.Create() failed for Keycloak sub {keycloakId}: {result.Error.Message}");
@@ -75,7 +75,7 @@ public sealed class JitProvisioningMiddleware
 		var userRepo = scope.ServiceProvider.GetRequiredService<IUserRepository>();
 		var dbContext = scope.ServiceProvider.GetRequiredService<CurviaDbContext>();
 
-		var keycloakIdResult = KeycloakId.Create(keycloakGuid.ToString());
+		var keycloakIdResult = KeycloakSubject.Create(keycloakGuid.ToString());
 		if (keycloakIdResult.IsFailure)
 			throw new InvalidOperationException($"Failed to build KeycloakId from sub {keycloakGuid}: {keycloakIdResult.Error.Message}");
 
@@ -95,7 +95,7 @@ public sealed class JitProvisioningMiddleware
 			var locale = currentUser.Principal?.FindFirst("locale")?.Value;
 			var displayName = currentUser.DisplayName ?? user.DisplayName.Value;
 
-			var updateResult = user.UpdateProfile(email, displayName, locale);
+			var updateResult = user.SyncFromToken(email, displayName, locale);
 
 			if (updateResult.IsFailure)
 			{

@@ -32,7 +32,7 @@ internal sealed class UserRepository : BaseAsyncCommandRepository<User, UserId>,
 	}
 
 	/// <inheritdoc/>
-	public async Task<User?> FindByKeycloakIdAsync(KeycloakId keycloakId, CancellationToken cancellationToken = default)
+	public async Task<User?> FindByKeycloakIdAsync(KeycloakSubject keycloakId, CancellationToken cancellationToken = default)
 	{
 		return await DbContext.Set<User>()
 			.FirstOrDefaultAsync(u => u.KeycloakId == keycloakId, cancellationToken);
