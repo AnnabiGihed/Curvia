@@ -1,4 +1,4 @@
-﻿namespace Curvia.Domain.Features.Routing.RoutePlans.ValueObjects;
+﻿namespace Curvia.Domain.Features.Routing.RoutePlans.Enums;
 
 /// <summary>
 /// Author      : Gihed Annabi

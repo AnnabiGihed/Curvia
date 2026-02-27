@@ -1,5 +1,6 @@
 ﻿using FluentValidation;
 using Curvia.Domain.Features.Routing.RoutePlans.ValueObjects;
+using Curvia.Domain.Features.Routing.RoutePlans.Enums;
 
 namespace Curvia.Application.Features.Routes.Commands.Generate;
 

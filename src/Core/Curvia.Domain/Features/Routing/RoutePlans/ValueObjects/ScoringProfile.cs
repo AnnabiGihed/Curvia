@@ -1,5 +1,6 @@
 ﻿using Templates.Core.Domain.Shared;
 using Curvia.Domain.Features.Routing.Shared;
+using Curvia.Domain.Features.Routing.RoutePlans.Enums;
 
 namespace Curvia.Domain.Features.Routing.RoutePlans.ValueObjects;
 

@@ -8,6 +8,7 @@ using Curvia.Application.Features.Routes.Contracts.Services.Scoring;
 using Curvia.Application.Features.Routes.Contracts.Engines.Valhalla.Builder;
 using Curvia.Application.Features.Routes.Contracts.Engines.Valhalla.RoutingClient;
 using Curvia.Application.Features.Routes.Contracts.Engines.Valhalla.CandidateGenerator;
+using Curvia.Domain.Features.Routing.RoutePlans.Enums;
 
 namespace Curvia.Application.Features.Routes.Commands.Generate;
 

@@ -1,6 +1,7 @@
 ﻿using Curvia.Domain.Features.Routing.RoutePlans.ValueObjects;
 using Templates.Core.Application.Abstractions.Messaging.Commands;
 using Curvia.Application.Features.Routes.Commands.Generate.Responses;
+using Curvia.Domain.Features.Routing.RoutePlans.Enums;
 
 namespace Curvia.Application.Features.Routes.Commands.Generate;
 
