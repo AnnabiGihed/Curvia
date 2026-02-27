@@ -110,7 +110,7 @@ internal sealed class GetAwarenessForAreaQueryHandler : IQueryHandler<GetAwarene
 				h.Id.Value, h.Latitude, h.Longitude,
 				h.HazardType, h.Description, h.Source, h.CountryCode)).ToList(),
 			RoadWorks: roadWorks.Select(r => new RoadWorkDto(
-				r.Id.Value, r.Latitude, r.Longitude,
+				r.Id.Value, r.Position.Latitude, r.Position.Longitude,
 				r.Title, r.Description, r.ValidFromUtc, r.ValidUntilUtc,
 				r.Source, r.CountryCode)).ToList(),
 			Incidents: incidents.Select(i => new IncidentDto(

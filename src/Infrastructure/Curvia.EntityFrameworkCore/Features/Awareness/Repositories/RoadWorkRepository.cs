@@ -1,8 +1,8 @@
-﻿using Curvia.Domain.Features.Awareness.Aggregates;
+﻿using Microsoft.EntityFrameworkCore;
+using Curvia.Domain.Features.Awareness.Aggregates;
 using Curvia.Domain.Features.Awareness.Repositories;
 using Curvia.Domain.Features.Awareness.ValueObjects;
 using Curvia.Persistence.EntityFrameworkCore.PersistenceContext;
-using Microsoft.EntityFrameworkCore;
 using Templates.Core.Infrastructure.Persistence.EntityFrameworkCore.Repositories;
 
 namespace Curvia.Persistence.EntityFrameworkCore.Features.Awareness.Repositories;
@@ -23,8 +23,8 @@ internal sealed class RoadWorkRepository
 	{
 		var now = DateTime.UtcNow;
 		return await DbContext.Set<RoadWork>()
-			.Where(r => r.Latitude >= bbox.South && r.Latitude <= bbox.North
-					 && r.Longitude >= bbox.West && r.Longitude <= bbox.East
+			.Where(r => r.Position.Latitude >= bbox.South && r.Position.Latitude <= bbox.North
+					 && r.Position.Longitude >= bbox.West && r.Position.Longitude <= bbox.East
 					 && r.ValidFromUtc <= now
 					 && r.ValidUntilUtc > now)
 			.ToListAsync(ct);
@@ -35,7 +35,7 @@ internal sealed class RoadWorkRepository
 	{
 		return await DbContext.Set<RoadWork>()
 			.FirstOrDefaultAsync(r =>
-				r.ExternalId == externalId &&
+				r.ExternalId.Value == externalId &&
 				r.Source == source &&
 				r.CountryCode == countryCode, ct);
 	}
