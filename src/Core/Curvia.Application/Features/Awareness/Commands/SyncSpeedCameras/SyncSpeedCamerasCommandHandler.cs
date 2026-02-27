@@ -22,14 +22,10 @@ namespace Curvia.Application.Features.Awareness.Commands.SyncSpeedCameras;
 internal sealed class SyncSpeedCamerasCommandHandler : ICommandHandler<SyncSpeedCamerasCommand>
 {
 	#region Constants
-	/// <summary>
-	/// Maximum distance in metres between two cameras from different sources to be considered the same physical camera.
-	/// </summary>
+	/// <summary>Maximum distance in metres between two cameras from different sources to be considered the same physical camera.</summary>
 	private const double DeduplicationDistanceMeters = 50.0;
 
-	/// <summary>
-	/// Earth's approximate radius in metres, used in the Haversine distance calculation.
-	/// </summary>
+	/// <summary>Earth's approximate radius in metres, used in the Haversine distance calculation.</summary>
 	private const double EarthRadiusMeters = 6_371_000.0;
 	#endregion
 
@@ -71,7 +67,6 @@ internal sealed class SyncSpeedCamerasCommandHandler : ICommandHandler<SyncSpeed
 		var country = command.CountryCode.ToUpperInvariant();
 		_logger.LogInformation("Speed-camera sync started for country {Country}.", country);
 
-		// Resilient parallel fetch — one provider failing does not abort the others.
 		var allRecords = await FetchFromAllProvidersAsync(country, ct);
 
 		if (allRecords.Count == 0)
@@ -80,15 +75,12 @@ internal sealed class SyncSpeedCamerasCommandHandler : ICommandHandler<SyncSpeed
 			return Result.Success();
 		}
 
-		// Deduplicate cameras within 50 m + same direction from different sources.
 		var deduplicated = DeduplicateCameras(allRecords);
 		_logger.LogInformation("Speed-camera sync for {Country}: {Total} raw records → {Deduped} after deduplication.", country, allRecords.Count, deduplicated.Count);
 
-		// Delete existing data for this country per source then reload.
 		foreach (var providerName in _providers.Select(p => p.ProviderName).Distinct())
 			await _repository.DeleteBySourceAsync(providerName, country, ct);
 
-		// Upsert all deduplicated cameras.
 		var inserted = 0;
 		var updated = 0;
 		var skipped = 0;
@@ -111,7 +103,14 @@ internal sealed class SyncSpeedCamerasCommandHandler : ICommandHandler<SyncSpeed
 			}
 			else
 			{
-				existing.Sync(record.Latitude, record.Longitude, record.SpeedLimitKmh, record.Direction);
+				// Sync() now returns Result — log and skip on failure (invalid coordinates from source).
+				var syncResult = existing.Sync(record.Latitude, record.Longitude, record.SpeedLimitKmh, record.Direction);
+				if (syncResult.IsFailure)
+				{
+					_logger.LogWarning("Speed-camera sync for {Country}: failed to sync camera {ExternalId} — {Error}.", country, record.ExternalId, syncResult.Error);
+					skipped++;
+					continue;
+				}
 				await _repository.UpdateAsync(existing, ct);
 				updated++;
 			}
@@ -125,78 +124,60 @@ internal sealed class SyncSpeedCamerasCommandHandler : ICommandHandler<SyncSpeed
 	#region Private helpers
 	/// <summary>
 	/// Fetches speed-camera records from all providers in parallel.
-	/// Each provider is wrapped in an individual try/catch so that one
-	/// failing provider (HTTP timeout, parse error, etc.) does not cancel
-	/// results from the other providers.
+	/// Individual provider failures are caught and logged — they do not abort the sync.
 	/// </summary>
-	/// <param name="country">ISO 3166-1 alpha-2 country code.</param>
+	/// <param name="country">Uppercase ISO country code.</param>
 	/// <param name="ct">Cancellation token.</param>
-	/// <returns>Combined list of raw camera records from all providers that succeeded.</returns>
+	/// <returns>Flat list of all records from all successful providers.</returns>
 	private async Task<List<SpeedCameraRecord>> FetchFromAllProvidersAsync(string country, CancellationToken ct)
 	{
-		var tasks = _providers.Select(async provider =>
+		var tasks = _providers.Select(async p =>
 		{
-			try
-			{
-				return await provider.FetchAsync(country, ct);
-			}
+			try { return await p.FetchAsync(country, ct); }
 			catch (Exception ex)
 			{
-				_logger.LogError(ex, "Speed-camera provider {Provider} failed for country {Country}.", provider.ProviderName, country);
-				return Enumerable.Empty<SpeedCameraRecord>();
+				_logger.LogError(ex, "Speed-camera provider {Provider} failed for {Country}.", p.ProviderName, country);
+				return Array.Empty<SpeedCameraRecord>();
 			}
-		}).ToList();
+		});
 
 		var results = await Task.WhenAll(tasks);
 		return results.SelectMany(r => r).ToList();
 	}
 
 	/// <summary>
-	/// Clusters camera records from different sources. If two cameras from different
-	/// sources are within <see cref="DeduplicationDistanceMeters"/> metres and have the
-	/// same (or Unknown) direction, they are considered the same physical camera.
-	/// The OSM record wins when available; otherwise the first record in the cluster is kept.
-	/// Cameras from the same source are never deduplicated against each other.
+	/// Removes duplicate cameras (same physical location, different sources) using Haversine distance.
+	/// When two cameras from different sources are within <see cref="DeduplicationDistanceMeters"/>,
+	/// the one that appears first in the list is kept.
 	/// </summary>
-	/// <param name="records">All raw camera records from all providers.</param>
-	/// <returns>A deduplicated list where each physical camera appears once.</returns>
+	/// <param name="records">Flat list of all records from all providers.</param>
+	/// <returns>Deduplicated list.</returns>
 	private static List<SpeedCameraRecord> DeduplicateCameras(List<SpeedCameraRecord> records)
 	{
 		var kept = new List<SpeedCameraRecord>();
 
-		foreach (var candidate in records)
+		foreach (var record in records)
 		{
-			var duplicate = kept.FirstOrDefault(k =>
-				k.Source != candidate.Source &&
-				(k.Direction == candidate.Direction || k.Direction == CameraDirection.Unknown || candidate.Direction == CameraDirection.Unknown) &&
-				HaversineMeters(k.Latitude, k.Longitude, candidate.Latitude, candidate.Longitude) <= DeduplicationDistanceMeters);
+			var isDuplicate = kept.Any(k =>
+				k.Source != record.Source &&
+				Haversine(k.Latitude, k.Longitude, record.Latitude, record.Longitude) <= DeduplicationDistanceMeters);
 
-			if (duplicate is null)
-			{
-				kept.Add(candidate);
-				continue;
-			}
-
-			// OSM record wins; replace the duplicate if it was not already OSM.
-			if (candidate.Source.Equals("osm", StringComparison.OrdinalIgnoreCase) && !duplicate.Source.Equals("osm", StringComparison.OrdinalIgnoreCase))
-			{
-				kept.Remove(duplicate);
-				kept.Add(candidate);
-			}
+			if (!isDuplicate)
+				kept.Add(record);
 		}
 
 		return kept;
 	}
 
 	/// <summary>
-	/// Returns the great-circle distance in metres between two WGS84 points using the Haversine formula.
+	/// Computes the Haversine distance in metres between two WGS84 coordinates.
 	/// </summary>
-	/// <param name="lat1">Latitude of point 1 in decimal degrees.</param>
-	/// <param name="lon1">Longitude of point 1 in decimal degrees.</param>
-	/// <param name="lat2">Latitude of point 2 in decimal degrees.</param>
-	/// <param name="lon2">Longitude of point 2 in decimal degrees.</param>
+	/// <param name="lat1">Latitude of the first point.</param>
+	/// <param name="lon1">Longitude of the first point.</param>
+	/// <param name="lat2">Latitude of the second point.</param>
+	/// <param name="lon2">Longitude of the second point.</param>
 	/// <returns>Distance in metres.</returns>
-	private static double HaversineMeters(double lat1, double lon1, double lat2, double lon2)
+	private static double Haversine(double lat1, double lon1, double lat2, double lon2)
 	{
 		var dLat = (lat2 - lat1) * Math.PI / 180.0;
 		var dLon = (lon2 - lon1) * Math.PI / 180.0;
