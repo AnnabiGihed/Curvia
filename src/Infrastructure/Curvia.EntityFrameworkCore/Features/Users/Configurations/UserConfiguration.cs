@@ -60,7 +60,10 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
 
 		#region Locale (primitive nullable string)
 		builder.Property(x => x.Locale)
-			.HasMaxLength(20)
+			.HasConversion(
+				vo => vo != null ? vo.Value : null,
+				raw => raw != null ? Locale.FromPersistence(raw) : null)
+			.HasMaxLength(10) // or the constant 10 if not exposed
 			.HasColumnName("Locale")
 			.IsRequired(false);
 		#endregion

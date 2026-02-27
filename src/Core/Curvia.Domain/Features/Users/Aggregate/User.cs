@@ -41,7 +41,7 @@ public sealed class User : AggregateRoot<UserId>
 	/// Null when the token does not carry a locale claim.
 	/// Updated on every login via <see cref="SyncFromToken"/>.
 	/// </summary>
-	public string? Locale { get; private set; }
+	public Locale? Locale { get; private set; }
 	#endregion
 
 	#region Constructors
@@ -73,17 +73,24 @@ public sealed class User : AggregateRoot<UserId>
 	public static Result<User> Provision(string keycloakSubject, string email, string displayName, string? locale = null)
 	{
 		var subjectResult = KeycloakSubject.Create(keycloakSubject);
-		if (subjectResult.IsFailure) return Result.Failure<User>(subjectResult.Error);
+		if (subjectResult.IsFailure) 
+			return Result.Failure<User>(subjectResult.Error);
 
 		var emailResult = UserEmail.Create(email);
-		if (emailResult.IsFailure) return Result.Failure<User>(emailResult.Error);
+		if (emailResult.IsFailure)
+			return Result.Failure<User>(emailResult.Error);
 
 		var displayNameResult = DisplayName.Create(displayName);
-		if (displayNameResult.IsFailure) return Result.Failure<User>(displayNameResult.Error);
+		if (displayNameResult.IsFailure) 
+			return Result.Failure<User>(displayNameResult.Error);
+
+		var localeResult = Locale.Create(displayName);
+		if (localeResult.IsFailure) 
+			return Result.Failure<User>(localeResult.Error);
 
 		var now = DateTime.UtcNow;
 		var user = new User(new UserId(Guid.NewGuid()), subjectResult.Value, emailResult.Value, displayNameResult.Value);
-		user.Locale = locale;
+		user.Locale = localeResult.Value;
 		user.InitializeAudit(now, keycloakSubject);
 		return Result.Success(user);
 	}
@@ -97,14 +104,20 @@ public sealed class User : AggregateRoot<UserId>
 	public Result SyncFromToken(string email, string displayName, string? locale = null)
 	{
 		var emailResult = UserEmail.Create(email);
-		if (emailResult.IsFailure) return Result.Failure(emailResult.Error);
+		if (emailResult.IsFailure) 
+			return Result.Failure(emailResult.Error);
 
 		var displayNameResult = DisplayName.Create(displayName);
-		if (displayNameResult.IsFailure) return Result.Failure(displayNameResult.Error);
+		if (displayNameResult.IsFailure) 
+			return Result.Failure(displayNameResult.Error);
+
+		var localeResult = Locale.Create(displayName);
+		if (localeResult.IsFailure)
+			return Result.Failure<User>(localeResult.Error);
 
 		Email = emailResult.Value;
 		DisplayName = displayNameResult.Value;
-		Locale = locale;
+		Locale = localeResult.Value;
 		Touch(DateTime.UtcNow, KeycloakId.Value);
 		return Result.Success();
 	}
