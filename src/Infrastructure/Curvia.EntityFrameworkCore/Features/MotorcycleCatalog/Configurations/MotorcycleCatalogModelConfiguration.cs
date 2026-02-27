@@ -3,6 +3,7 @@ using Curvia.Domain.Features.Users.Aggregate;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Curvia.Persistence.EntityFrameworkCore.Constants;
 using Curvia.Domain.Features.MotorcycleCatalog.Aggregates;
+using Curvia.Domain.Features.MotorcycleCatalog.ValueObjects;
 
 namespace Curvia.Persistence.EntityFrameworkCore.Features.MotorcycleCatalog.Configurations;
 
@@ -10,6 +11,7 @@ namespace Curvia.Persistence.EntityFrameworkCore.Features.MotorcycleCatalog.Conf
 /// Author      : Gihed Annabi
 /// Date        : 02-2026
 /// Purpose     : EF Core configuration for the MotorcycleCatalogModel aggregate root.
+///              Name is now mapped via the <see cref="ModelName"/> value object.
 /// </summary>
 internal sealed class MotorcycleCatalogModelConfiguration : IEntityTypeConfiguration<MotorcycleCatalogModel>
 {
@@ -17,18 +19,20 @@ internal sealed class MotorcycleCatalogModelConfiguration : IEntityTypeConfigura
 	/// <summary>
 	/// Configures EF Core mapping for <see cref="MotorcycleCatalogModel"/>:
 	/// table name, property constraints, enum conversions, soft-delete query filter,
-	/// primary key conversion, optional SuggestedByUserId persistence, and MakerId FK setup.
+	/// primary key conversion, ModelName VO conversion, optional SuggestedByUserId persistence,
+	/// and MakerId FK setup.
 	/// </summary>
 	/// <param name="builder">Entity type builder for <see cref="MotorcycleCatalogModel"/>.</param>
 	public void Configure(EntityTypeBuilder<MotorcycleCatalogModel> builder)
 	{
 		builder.ToTable(DbTableNames.MotorcycleModels);
 
-		#region Name
-
+		#region Name (VO)
 		builder.Property(x => x.Name)
 			.IsRequired()
-			.HasMaxLength(150);
+			.HasConversion(vo => vo.Value, raw => ModelName.FromPersistence(raw))
+			.HasMaxLength(ModelName.MaxLength)
+			.HasColumnName("Name");
 		#endregion
 
 		#region Status
@@ -72,9 +76,7 @@ internal sealed class MotorcycleCatalogModelConfiguration : IEntityTypeConfigura
 
 		#region SuggestedByUserId (nullable FK — no navigation)
 		builder.Property(x => x.SuggestedByUserId)
-			.HasConversion(
-				id => id != null ? id.Value : (Guid?)null,
-				v => v.HasValue ? new UserId(v.Value) : null)
+			.HasConversion(id => id != null ? id.Value : (Guid?)null, v => v.HasValue ? new UserId(v.Value) : null)
 			.HasColumnName("SuggestedByUserId");
 		#endregion
 

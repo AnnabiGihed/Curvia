@@ -38,7 +38,7 @@ internal sealed class MotorcycleCatalogModelRepository : BaseAsyncCommandReposit
 	public async Task<bool> OfficialNameExistsAsync(MotorcycleMakerId makerId, string name, CancellationToken ct = default)
 	{
 		return await DbContext.Set<MotorcycleCatalogModel>()
-			.AnyAsync(m => m.MakerId == makerId && m.Status == CatalogItemStatus.Official && m.Name.ToLower() == name.Trim().ToLower(), ct);
+			.AnyAsync(m => m.MakerId == makerId && m.Status == CatalogItemStatus.Official && m.Name.Value.ToLower() == name.Trim().ToLower(), ct);
 	}
 
 	/// <inheritdoc/>

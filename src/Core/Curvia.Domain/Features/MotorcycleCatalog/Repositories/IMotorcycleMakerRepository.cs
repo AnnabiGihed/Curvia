@@ -26,10 +26,4 @@ public interface IMotorcycleMakerRepository : IAsyncCommandRepository<Motorcycle
 	/// Used for public dropdowns.
 	/// </summary>
 	Task<IReadOnlyList<MotorcycleMaker>> GetAllOfficialAsync(CancellationToken ct = default);
-
-	/// <summary>
-	/// Find by ID (any status).
-	/// Returns null if not found or soft-deleted.
-	/// </summary>
-	Task<MotorcycleMaker?> FindByIdAsync(MotorcycleMakerId id, CancellationToken ct = default);
 }

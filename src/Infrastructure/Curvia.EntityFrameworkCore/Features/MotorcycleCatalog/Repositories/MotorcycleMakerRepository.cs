@@ -50,12 +50,5 @@ internal sealed class MotorcycleMakerRepository : BaseAsyncCommandRepository<Mot
 			.OrderBy(m => m.Name)
 			.ToListAsync(ct);
 	}
-
-	/// <inheritdoc/>
-	public async Task<MotorcycleMaker?> FindByIdAsync(MotorcycleMakerId id, CancellationToken ct = default)
-	{
-		return await DbContext.Set<MotorcycleMaker>()
-			.FirstOrDefaultAsync(m => m.Id == id, ct);
-	}
 	#endregion
 }
