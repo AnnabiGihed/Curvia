@@ -66,4 +66,11 @@ internal static class DbTableNames
 	/// </summary>
 	public const string MotorcycleModels = nameof(MotorcycleModels);
 	#endregion
+
+	#region Awareness
+	public const string SpeedCameras = nameof(SpeedCameras);
+	public const string Hazards = nameof(Hazards);
+	public const string RoadWorks = nameof(RoadWorks);
+	public const string Incidents = nameof(Incidents);
+	#endregion
 }

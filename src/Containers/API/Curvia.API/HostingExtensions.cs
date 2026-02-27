@@ -1,12 +1,13 @@
-﻿using Serilog;
-using System.Reflection;
-using Microsoft.EntityFrameworkCore;
+﻿using Curvia.API.Jobs;
 using Curvia.API.Middleware.Identity;
-using Templates.Core.Containers.API.Middleware;
-using Templates.Core.Authentication.AspNetCore.Extensions;
-using Templates.Core.Tools.DependencyInjection.Abstractions;
-using Curvia.Persistence.EntityFrameworkCore.PersistenceContext;
 using Curvia.Persistence.EntityFrameworkCore.Features.MotorcycleCatalog.Seed;
+using Curvia.Persistence.EntityFrameworkCore.PersistenceContext;
+using Microsoft.EntityFrameworkCore;
+using Serilog;
+using System.Reflection;
+using Templates.Core.Authentication.AspNetCore.Extensions;
+using Templates.Core.Containers.API.Middleware;
+using Templates.Core.Tools.DependencyInjection.Abstractions;
 
 namespace Curvia.API;
 
@@ -63,6 +64,8 @@ internal static class HostingExtensions
 		app.UseCors("Open");
 		app.MapControllers();
 		#endregion
+
+		app.RegisterAwarenessJobs();
 
 		return app;
 	}

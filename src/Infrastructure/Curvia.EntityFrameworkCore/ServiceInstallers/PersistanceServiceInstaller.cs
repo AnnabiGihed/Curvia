@@ -1,20 +1,22 @@
-﻿using System.Reflection;
+﻿using Curvia.Domain.Features.Awareness.Repositories;
+using Curvia.Domain.Features.MotorcycleCatalog.Repositories;
+using Curvia.Domain.Features.Motorcycles.Repositories;
+using Curvia.Domain.Features.SavedRoutes.Repositories;
+using Curvia.Domain.Features.Users.Repositories;
+using Curvia.Persistence.EntityFrameworkCore.Features.Awareness.Repositories;
+using Curvia.Persistence.EntityFrameworkCore.Features.MotorcycleCatalog.Repositories;
+using Curvia.Persistence.EntityFrameworkCore.Features.Motorcycles.Repositories;
+using Curvia.Persistence.EntityFrameworkCore.Features.SavedRoutes.Repositories;
+using Curvia.Persistence.EntityFrameworkCore.Features.Users.Repositories;
+using Curvia.Persistence.EntityFrameworkCore.PersistenceContext;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Templates.Core.Tools.DependencyInjection;
-using Curvia.Domain.Features.Users.Repositories;
-using Curvia.Domain.Features.Motorcycles.Repositories;
-using Curvia.Domain.Features.SavedRoutes.Repositories;
-using Templates.Core.Tools.DependencyInjection.Abstractions;
-using Curvia.Domain.Features.MotorcycleCatalog.Repositories;
+using System.Reflection;
 using Templates.Core.Infrastructure.Abstraction.Transaction;
-using Curvia.Persistence.EntityFrameworkCore.PersistenceContext;
-using Curvia.Persistence.EntityFrameworkCore.Features.Users.Repositories;
-using Curvia.Persistence.EntityFrameworkCore.Features.Motorcycles.Repositories;
-using Curvia.Persistence.EntityFrameworkCore.Features.SavedRoutes.Repositories;
 using Templates.Core.Infrastructure.Persistence.EntityFrameworkCore.Transaction;
-using Curvia.Persistence.EntityFrameworkCore.Features.MotorcycleCatalog.Repositories;
+using Templates.Core.Tools.DependencyInjection;
+using Templates.Core.Tools.DependencyInjection.Abstractions;
 
 namespace Curvia.Persistence.EntityFrameworkCore.ServiceInstallers;
 
@@ -64,6 +66,13 @@ public sealed class PersistanceServiceInstaller : BaseServiceInstaller, IService
 		#region Motorcycle Catalog
 		services.AddScoped<IMotorcycleMakerRepository, MotorcycleMakerRepository>();
 		services.AddScoped<IMotorcycleCatalogModelRepository, MotorcycleCatalogModelRepository>();
+		#endregion
+
+		#region Awareness
+		services.AddScoped<IHazardRepository, HazardRepository>();
+		services.AddScoped<IRoadWorkRepository, RoadWorkRepository>();
+		services.AddScoped<IIncidentRepository, IncidentRepository>();
+		services.AddScoped<ISpeedCameraRepository, SpeedCameraRepository>();
 		#endregion
 	}
 	#endregion
