@@ -16,14 +16,6 @@ namespace Curvia.Domain.Features.SavedRoutes.Repositories;
 public interface ISavedRouteRepository : IAsyncCommandRepository<SavedRoute, SavedRouteId>
 {
 	/// <summary>
-	/// Returns a single saved route with its reviews collection, regardless of owner.
-	/// Returns null if the route does not exist or has been soft-deleted.
-	/// Used by <see cref="SubmitReviewCommandHandler"/> as the community-review fallback —
-	/// visibility enforcement is the caller's responsibility.
-	/// </summary>
-	Task<SavedRoute?> FindByIdAsync(SavedRouteId id, CancellationToken cancellationToken = default);
-
-	/// <summary>
 	/// Returns true if the user has already saved the given route.
 	/// Prevents duplicate (UserId, RouteId) entries.
 	/// </summary>
