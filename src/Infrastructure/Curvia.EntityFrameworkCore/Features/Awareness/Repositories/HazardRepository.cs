@@ -32,7 +32,7 @@ internal sealed class HazardRepository
 	{
 		return await DbContext.Set<Hazard>()
 			.FirstOrDefaultAsync(h =>
-				h.ExternalId == externalId &&
+				h.ExternalId.Value == externalId &&
 				h.Source == source &&
 				h.CountryCode == countryCode, ct);
 	}
