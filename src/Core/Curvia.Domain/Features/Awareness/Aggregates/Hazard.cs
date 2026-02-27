@@ -39,13 +39,6 @@ public sealed class Hazard : AggregateRoot<HazardId>
 	public AwarenessCountryCode CountryCode { get; private set; } = default!;
 	#endregion
 
-
-	/// <summary>WGS84 latitude convenience accessor. Equivalent to <see cref="Position"/>.Latitude.</summary>
-	public double Latitude => Position.Latitude;
-
-	/// <summary>WGS84 longitude convenience accessor. Equivalent to <see cref="Position"/>.Longitude.</summary>
-	public double Longitude => Position.Longitude;
-
 	#region Constructors
 	/// <summary>For EF Core materialization only.</summary>
 	private Hazard() { }

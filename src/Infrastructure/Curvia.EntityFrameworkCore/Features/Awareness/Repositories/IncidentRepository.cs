@@ -16,25 +16,22 @@ namespace Curvia.Persistence.EntityFrameworkCore.Features.Awareness.Repositories
 /// Purpose     : EF Core implementation of <see cref="IIncidentRepository"/>.
 ///              GetInAreaAsync filters to active incidents server-side.
 /// </summary>
-internal sealed class IncidentRepository
-	: BaseAsyncCommandRepository<Incident, IncidentId>, IIncidentRepository
+internal sealed class IncidentRepository : BaseAsyncCommandRepository<Incident, IncidentId>, IIncidentRepository
 {
 	public IncidentRepository(CurviaDbContext dbContext) : base(dbContext) { }
 
-	public async Task<IReadOnlyList<Incident>> GetInAreaAsync(
-		BoundingBox bbox, CancellationToken ct = default)
+	public async Task<IReadOnlyList<Incident>> GetInAreaAsync(BoundingBox bbox, CancellationToken ct = default)
 	{
 		var now = DateTime.UtcNow;
 		return await DbContext.Set<Incident>()
-			.Where(i => i.Latitude >= bbox.South && i.Latitude <= bbox.North
-					 && i.Longitude >= bbox.West && i.Longitude <= bbox.East
+			.Where(i => i.Position.Latitude >= bbox.South && i.Position.Latitude <= bbox.North
+					 && i.Position.Longitude >= bbox.West && i.Position.Longitude <= bbox.East
 					 && i.ValidFromUtc <= now
 					 && i.ValidUntilUtc > now)
 			.ToListAsync(ct);
 	}
 
-	public async Task<Incident?> FindByExternalIdAsync(
-		string externalId, string source, string countryCode, CancellationToken ct = default)
+	public async Task<Incident?> FindByExternalIdAsync(string externalId, string source, string countryCode, CancellationToken ct = default)
 	{
 		return await DbContext.Set<Incident>()
 			.FirstOrDefaultAsync(i =>

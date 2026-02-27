@@ -104,17 +104,17 @@ internal sealed class GetAwarenessForAreaQueryHandler : IQueryHandler<GetAwarene
 
 		var dto = new AwarenessResultDto(
 			SpeedCameras: cameras.Select(c => new SpeedCameraDto(
-				c.Id.Value, c.Latitude, c.Longitude,
-				c.SpeedLimitKmh, c.Direction, c.Source, c.CountryCode)).ToList(),
+				c.Id.Value, c.Position.Latitude, c.Position.Longitude,
+				c.SpeedLimit.Kmh, c.Direction, c.Source, c.CountryCode)).ToList(),
 			Hazards: hazards.Select(h => new HazardDto(
-				h.Id.Value, h.Latitude, h.Longitude,
+				h.Id.Value, h.Position.Latitude, h.Position.Longitude,
 				h.HazardType, h.Description, h.Source, h.CountryCode)).ToList(),
 			RoadWorks: roadWorks.Select(r => new RoadWorkDto(
 				r.Id.Value, r.Position.Latitude, r.Position.Longitude,
 				r.Title, r.Description, r.ValidFromUtc, r.ValidUntilUtc,
 				r.Source, r.CountryCode)).ToList(),
 			Incidents: incidents.Select(i => new IncidentDto(
-				i.Id.Value, i.Latitude, i.Longitude,
+				i.Id.Value, i.Position.Latitude, i.Position.Longitude,
 				i.IncidentType, i.Severity, i.Description,
 				i.ValidFromUtc, i.ValidUntilUtc, i.Source, i.CountryCode)).ToList(),
 			DataFreshnessUtc: freshnessUtc);

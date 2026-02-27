@@ -1,7 +1,8 @@
-﻿using Curvia.Domain.Features.Awareness.Aggregates;
-using Curvia.Persistence.EntityFrameworkCore.Constants;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
+using Curvia.Domain.Features.Awareness.Aggregates;
+using Curvia.Domain.Features.Awareness.ValueObjects;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Curvia.Persistence.EntityFrameworkCore.Constants;
 
 namespace Curvia.Persistence.EntityFrameworkCore.Features.Awareness.Configurations;
 
@@ -20,49 +21,82 @@ namespace Curvia.Persistence.EntityFrameworkCore.Features.Awareness.Configuratio
 ///                  For production scale with PostGIS, replace with a spatial index.
 ///                - ExternalId + Source + CountryCode form the natural key used by
 ///                  the Worker for idempotent upserts.
+///                - Value objects (ExternalId, SourceName, AwarenessCountryCode, SpeedLimit,
+///                  Coordinate) are mapped with HasConversion — no owned-type overhead.
+///                  Coordinate maps to two separate float columns (Latitude, Longitude)
+///                  using split conversion helpers.
 /// </summary>
 internal sealed class SpeedCameraConfiguration : IEntityTypeConfiguration<SpeedCamera>
 {
+	/// <summary>
+	/// Configures EF Core mapping for <see cref="SpeedCamera"/>.
+	/// </summary>
+	/// <param name="builder">Entity type builder.</param>
 	public void Configure(EntityTypeBuilder<SpeedCamera> builder)
 	{
 		builder.ToTable(DbTableNames.SpeedCameras);
 
+		#region Primary key
 		builder.HasKey(x => x.Id);
 		builder.Property(x => x.Id)
 			.ValueGeneratedNever()
 			.HasConversion(id => id.Value, v => new SpeedCameraId(v));
+		#endregion
 
+		#region ExternalId (VO)
 		builder.Property(x => x.ExternalId)
 			.IsRequired()
-			.HasMaxLength(256);
+			.HasConversion(vo => vo.Value, raw => ExternalId.FromPersistence(raw))
+			.HasMaxLength(ExternalId.MaxLength)
+			.HasColumnName("ExternalId");
+		#endregion
 
+		#region Source (VO)
 		builder.Property(x => x.Source)
 			.IsRequired()
-			.HasMaxLength(64);
+			.HasConversion(vo => vo.Value, raw => SourceName.FromPersistence(raw))
+			.HasMaxLength(SourceName.MaxLength)
+			.HasColumnName("Source");
+		#endregion
 
+		#region CountryCode (VO)
 		builder.Property(x => x.CountryCode)
 			.IsRequired()
-			.HasMaxLength(2);
+			.HasConversion(vo => vo.Value, raw => AwarenessCountryCode.FromPersistence(raw))
+			.HasMaxLength(2)
+			.HasColumnName("CountryCode");
+		#endregion
 
-		builder.Property(x => x.Latitude)
-			.IsRequired()
-			.HasColumnType("float");
+		#region Position (Coordinate VO — two scalar columns)
+		// Coordinate is an owned value object. EF maps it to two float columns on the same table.
+		builder.OwnsOne(x => x.Position, pos =>
+		{
+			pos.Property(p => p.Latitude).HasColumnName("Latitude").IsRequired().HasColumnType("float");
+			pos.Property(p => p.Longitude).HasColumnName("Longitude").IsRequired().HasColumnType("float");
+		});
+		#endregion
 
-		builder.Property(x => x.Longitude)
-			.IsRequired()
-			.HasColumnType("float");
-
-		builder.Property(x => x.SpeedLimitKmh)
+		#region SpeedLimit (nullable VO)
+		builder.Property(x => x.SpeedLimit)
+			.HasConversion(vo => vo != null ? (int?)vo.Kmh : null, raw => raw.HasValue ? SpeedLimit.FromPersistence(raw.Value) : null)
 			.HasColumnName("SpeedLimitKmh");
+		#endregion
 
+		#region Direction
 		builder.Property(x => x.Direction)
 			.IsRequired()
 			.HasConversion<string>()
-			.HasMaxLength(20);
+			.HasMaxLength(20)
+			.HasColumnName("Direction");
+		#endregion
 
+		#region LastSyncedUtc
 		builder.Property(x => x.LastSyncedUtc)
-			.IsRequired();
+			.IsRequired()
+			.HasColumnName("LastSyncedUtc");
+		#endregion
 
+		#region Audit
 		builder.OwnsOne(x => x.Audit, audit =>
 		{
 			audit.Property(a => a.CreatedOnUtc).HasColumnName("CreatedOnUtc");
@@ -70,21 +104,24 @@ internal sealed class SpeedCameraConfiguration : IEntityTypeConfiguration<SpeedC
 			audit.Property(a => a.ModifiedOnUtc).HasColumnName("ModifiedOnUtc");
 			audit.Property(a => a.ModifiedBy).HasMaxLength(128).HasColumnName("ModifiedBy");
 		});
+		#endregion
 
-		// Soft-delete columns exist (Entity<T> has them) but no query filter —
-		// lifecycle is managed by DeleteBySourceAsync, not soft delete.
+		#region Soft-delete columns (unused for awareness — no query filter)
 		builder.Property(x => x.IsDeleted).HasDefaultValue(false);
+		#endregion
 
-		// Composite index: supports DeleteBySourceAsync (frequent in sync runs)
-		builder.HasIndex(x => new { x.CountryCode, x.Source })
+		#region Indexes
+		// Supports DeleteBySourceAsync (frequent in sync runs)
+		builder.HasIndex("CountryCode", "Source")
 			.HasDatabaseName("IX_SpeedCameras_CountryCode_Source");
 
-		// Natural key index for upsert lookups
-		builder.HasIndex(x => new { x.ExternalId, x.Source, x.CountryCode })
+		// Natural key for upsert lookups
+		builder.HasIndex("ExternalId", "Source", "CountryCode")
 			.HasDatabaseName("IX_SpeedCameras_ExternalId_Source_CountryCode");
 
-		// Spatial query index — covers the WHERE Latitude BETWEEN and Longitude BETWEEN pattern
-		builder.HasIndex(x => new { x.Latitude, x.Longitude })
+		// Spatial query index (WHERE Latitude BETWEEN ... AND Longitude BETWEEN ...)
+		builder.HasIndex("Latitude", "Longitude")
 			.HasDatabaseName("IX_SpeedCameras_Latitude_Longitude");
+		#endregion
 	}
 }

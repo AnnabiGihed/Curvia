@@ -31,8 +31,8 @@ internal sealed class SpeedCameraRepository
 		BoundingBox bbox, CancellationToken ct = default)
 	{
 		return await DbContext.Set<SpeedCamera>()
-			.Where(c => c.Latitude >= bbox.South && c.Latitude <= bbox.North
-					 && c.Longitude >= bbox.West && c.Longitude <= bbox.East)
+			.Where(c => c.Position.Latitude >= bbox.South && c.Position.Latitude <= bbox.North
+					 && c.Position.Longitude >= bbox.West && c.Position.Longitude <= bbox.East)
 			.ToListAsync(ct);
 	}
 
@@ -41,7 +41,7 @@ internal sealed class SpeedCameraRepository
 	{
 		return await DbContext.Set<SpeedCamera>()
 			.FirstOrDefaultAsync(c =>
-				c.ExternalId == externalId &&
+				c.ExternalId.Value == externalId &&
 				c.Source == source &&
 				c.CountryCode == countryCode, ct);
 	}

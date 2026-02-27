@@ -22,8 +22,8 @@ internal sealed class HazardRepository
 		BoundingBox bbox, CancellationToken ct = default)
 	{
 		return await DbContext.Set<Hazard>()
-			.Where(h => h.Latitude >= bbox.South && h.Latitude <= bbox.North
-					 && h.Longitude >= bbox.West && h.Longitude <= bbox.East)
+			.Where(h => h.Position.Latitude >= bbox.South && h.Position.Latitude <= bbox.North
+					 && h.Position.Longitude >= bbox.West && h.Position.Longitude <= bbox.East)
 			.ToListAsync(ct);
 	}
 
