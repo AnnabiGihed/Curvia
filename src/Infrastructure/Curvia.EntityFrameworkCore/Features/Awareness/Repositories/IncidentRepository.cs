@@ -38,7 +38,7 @@ internal sealed class IncidentRepository
 	{
 		return await DbContext.Set<Incident>()
 			.FirstOrDefaultAsync(i =>
-				i.ExternalId == externalId &&
+				i.ExternalId.Value == externalId &&
 				i.Source == source &&
 				i.CountryCode == countryCode, ct);
 	}
