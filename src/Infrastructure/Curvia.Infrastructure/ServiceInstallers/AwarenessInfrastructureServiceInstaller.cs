@@ -1,6 +1,7 @@
 ﻿using Curvia.Infrastructure.Jobs;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Templates.Core.Infrastructure.Scheduling.Extensions;
 using Templates.Core.Tools.DependencyInjection.Abstractions;
 using Curvia.Infrastructure.Features.Awareness.Providers.Osm;
 using Curvia.Application.Features.Awareness.Contracts.Providers;
@@ -16,23 +17,34 @@ namespace Curvia.Infrastructure.ServiceInstallers;
 /// Date        : 02-2026
 /// Purpose     : Registers all awareness-related infrastructure services with the DI container.
 ///              Configures named HTTP clients with per-provider timeout tuning, registers
-///              all data providers by their interface contracts, and registers the cleanup job.
+///              all data providers by their interface contracts, registers the cleanup job,
+///              and sets up Hangfire (storage + server) via Templates.Core.Infrastructure.Scheduling
+///              so that recurring sync jobs can be scheduled at pipeline startup.
 /// </summary>
 public sealed class AwarenessInfrastructureServiceInstaller : IServiceInstaller
 {
 	#region IServiceInstaller
 	/// <summary>
-	/// Installs awareness infrastructure: HTTP clients, provider registrations, and the cleanup job.
+	/// Installs awareness infrastructure: Hangfire, HTTP clients, provider registrations, and the cleanup job.
 	/// </summary>
 	/// <param name="services">The service collection to register into.</param>
 	/// <param name="configuration">The application configuration for options binding.</param>
 	/// <param name="includeConventionBasedRegistration">When true, convention-based registrations are included via base.</param>
 	public void Install(IServiceCollection services, IConfiguration configuration, bool includeConventionBasedRegistration = true)
 	{
-		// Bind configuration
+		#region Awareness options
 		services.Configure<AwarenessSyncOptions>(configuration.GetSection(AwarenessSyncOptions.SectionName));
+		#endregion
 
-		// Named HTTP clients — separate clients allow per-provider timeout tuning
+		#region Hangfire — storage + server (via Templates.Core.Infrastructure.Scheduling)
+		// Uses the "HangfireConnection" connection string from appsettings.
+		// AddHangfireWithDashboard registers AddHangfire (SQL Server storage) + AddHangfireServer.
+		// The dashboard middleware is mounted separately in HostingExtensions.ConfigurePipeline
+		// via app.UseHangfireDashboardWithOptions().
+		services.AddHangfireWithDashboard(configuration);
+		#endregion
+
+		#region HTTP clients — named per provider for independent timeout tuning
 		services.AddHttpClient<OsmSpeedCameraProvider>(c =>
 		{
 			c.Timeout = TimeSpan.FromSeconds(120);
@@ -65,23 +77,29 @@ public sealed class AwarenessInfrastructureServiceInstaller : IServiceInstaller
 		{
 			c.Timeout = TimeSpan.FromSeconds(20);
 		});
+		#endregion
 
-		// Speed camera providers — all registered; sync handler merges + deduplicates
+		#region Speed camera providers — all registered; sync handler merges + deduplicates
 		services.AddScoped<ISpeedCameraDataProvider, OsmSpeedCameraProvider>();
 		services.AddScoped<ISpeedCameraDataProvider, OpenSpeedCamProvider>();
+		#endregion
 
-		// Hazard providers
+		#region Hazard providers
 		services.AddScoped<IHazardDataProvider, OsmHazardProvider>();
+		#endregion
 
-		// Road work providers — country-specific first, OSM fallback
+		#region Road work providers — country-specific first, OSM fallback
 		services.AddScoped<IRoadWorkDataProvider, GipodRoadWorkProvider>();
 		services.AddScoped<IRoadWorkDataProvider, OsmRoadWorkProvider>();
+		#endregion
 
-		// Incident providers
+		#region Incident providers
 		services.AddScoped<IIncidentFeedProvider, DatexIIIncidentProvider>();
+		#endregion
 
-		// Cleanup job (resolved by Hangfire)
+		#region Cleanup job — resolved by Hangfire per-job DI scope
 		services.AddScoped<AwarenessCleanupJob>();
+		#endregion
 	}
 	#endregion
 }

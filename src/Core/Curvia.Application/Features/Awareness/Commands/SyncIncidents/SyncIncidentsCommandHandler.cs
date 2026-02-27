@@ -1,6 +1,8 @@
-﻿using Templates.Core.Domain.Shared;
+﻿using Microsoft.Extensions.Logging;
+using Templates.Core.Domain.Shared;
 using Curvia.Domain.Features.Awareness.Aggregates;
 using Curvia.Domain.Features.Awareness.Repositories;
+using Curvia.Application.Features.Awareness.Contracts.Records;
 using Curvia.Application.Features.Awareness.Contracts.Providers;
 using Templates.Core.Application.Abstractions.Messaging.Commands;
 
@@ -11,8 +13,9 @@ namespace Curvia.Application.Features.Awareness.Commands.SyncIncidents;
 /// Date        : 02-2026
 /// Purpose     : Handles <see cref="SyncIncidentsCommand"/>.
 ///              Fetches live traffic incident records from all applicable DATEX II providers
-///              in parallel, upserts them by natural key (ExternalId + Source + CountryCode),
-///              and purges expired incidents after each run.
+///              in parallel (resilient — one failing provider does not abort the others),
+///              upserts them by natural key (ExternalId + Source + CountryCode), and purges
+///              expired incidents after each run.
 ///              Runs every 3 minutes per country — optimised for low-latency incident updates.
 /// </summary>
 internal sealed class SyncIncidentsCommandHandler : ICommandHandler<SyncIncidentsCommand>
@@ -23,6 +26,9 @@ internal sealed class SyncIncidentsCommandHandler : ICommandHandler<SyncIncident
 
 	/// <summary>Persistence contract for <see cref="Incident"/> aggregates.</summary>
 	private readonly IIncidentRepository _repository;
+
+	/// <summary>Logger for this handler.</summary>
+	private readonly ILogger<SyncIncidentsCommandHandler> _logger;
 	#endregion
 
 	#region Constructor
@@ -31,16 +37,18 @@ internal sealed class SyncIncidentsCommandHandler : ICommandHandler<SyncIncident
 	/// </summary>
 	/// <param name="providers">All registered incident feed providers.</param>
 	/// <param name="repository">Persistence contract for incident aggregates.</param>
-	public SyncIncidentsCommandHandler(IEnumerable<IIncidentFeedProvider> providers, IIncidentRepository repository)
+	/// <param name="logger">Logger instance.</param>
+	public SyncIncidentsCommandHandler(IEnumerable<IIncidentFeedProvider> providers, IIncidentRepository repository, ILogger<SyncIncidentsCommandHandler> logger)
 	{
 		_providers = providers ?? throw new ArgumentNullException(nameof(providers));
 		_repository = repository ?? throw new ArgumentNullException(nameof(repository));
+		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}
 	#endregion
 
 	#region ICommandHandler
 	/// <summary>
-	/// Executes the incident sync pipeline: filter providers, fetch in parallel, upsert, then delete expired records.
+	/// Executes the incident sync pipeline: filter providers, fetch in parallel (resilient), upsert, then delete expired records.
 	/// </summary>
 	/// <param name="command">Contains the ISO 3166-1 alpha-2 country code to sync.</param>
 	/// <param name="ct">Cancellation token.</param>
@@ -54,34 +62,85 @@ internal sealed class SyncIncidentsCommandHandler : ICommandHandler<SyncIncident
 			.ToList();
 
 		if (applicable.Count == 0)
-			return Result.Success(); // No feed configured for this country — not an error
-
-		var fetchTasks = applicable.Select(p => p.FetchAsync(country, ct)).ToList();
-		await Task.WhenAll(fetchTasks);
-		var records = fetchTasks.SelectMany(t => t.Result).ToList();
-
-		foreach (var record in records)
 		{
-			var source = applicable.FirstOrDefault()?.ProviderName ?? "datex2";
+			_logger.LogDebug("Incident sync for {Country}: no feed configured — skipped.", country);
+			return Result.Success();
+		}
+
+		_logger.LogInformation("Incident sync started for country {Country} with {Providers} provider(s).", country, applicable.Count);
+
+		// Resilient parallel fetch — one provider failing does not abort the others.
+		// Records are kept paired with their source provider to correctly derive Source.
+		var providerRecordPairs = await FetchFromApplicableProvidersAsync(applicable, country, ct);
+
+		_logger.LogInformation("Incident sync for {Country}: {Count} records fetched.", country, providerRecordPairs.Count);
+
+		var inserted = 0;
+		var updated = 0;
+		var skipped = 0;
+
+		foreach (var (record, source) in providerRecordPairs)
+		{
 			var existing = await _repository.FindByExternalIdAsync(record.ExternalId, source, country, ct);
 
 			if (existing is null)
 			{
 				var incidentResult = Incident.Create(record.ExternalId, source, country, record.Latitude, record.Longitude, record.IncidentType, record.Severity, record.Description, record.ValidFromUtc, record.ValidUntilUtc);
 				if (incidentResult.IsFailure)
+				{
+					_logger.LogWarning("Incident sync for {Country}: failed to create incident {ExternalId} — {Error}.", country, record.ExternalId, incidentResult.Error);
+					skipped++;
 					continue;
+				}
 				await _repository.AddAsync(incidentResult.Value, ct);
+				inserted++;
 			}
 			else
 			{
 				existing.Sync(record.Latitude, record.Longitude, record.IncidentType, record.Severity, record.Description, record.ValidFromUtc, record.ValidUntilUtc);
 				await _repository.UpdateAsync(existing, ct);
+				updated++;
 			}
 		}
 
+		// Purge expired incidents after each sync pass.
 		await _repository.DeleteExpiredAsync(ct);
 
+		_logger.LogInformation("Incident sync for {Country} complete: {Inserted} inserted, {Updated} updated, {Skipped} skipped.", country, inserted, updated, skipped);
 		return Result.Success();
+	}
+	#endregion
+
+	#region Private helpers
+	/// <summary>
+	/// Fetches incident records from each applicable provider individually so that a single
+	/// failing provider (HTTP timeout, malformed DATEX II feed, etc.) does not cancel records
+	/// from the remaining providers. Returns records paired with their originating provider name
+	/// so that Source is set correctly per record rather than defaulting to the first provider.
+	/// </summary>
+	/// <param name="providers">Providers that support the target country.</param>
+	/// <param name="country">ISO 3166-1 alpha-2 country code.</param>
+	/// <param name="ct">Cancellation token.</param>
+	/// <returns>List of (record, sourceName) pairs from all providers that succeeded.</returns>
+	private async Task<List<(IncidentRecord Record, string Source)>> FetchFromApplicableProvidersAsync(List<IIncidentFeedProvider> providers, string country, CancellationToken ct)
+	{
+		var tasks = providers.Select(async provider =>
+		{
+			try
+			{
+				var records = await provider.FetchAsync(country, ct);
+				// Pair every record with its originating provider name.
+				return records.Select(r => (Record: r, Source: provider.ProviderName));
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Incident provider {Provider} failed for country {Country}.", provider.ProviderName, country);
+				return Enumerable.Empty<(IncidentRecord, string)>();
+			}
+		}).ToList();
+
+		var results = await Task.WhenAll(tasks);
+		return results.SelectMany(r => r).ToList();
 	}
 	#endregion
 }

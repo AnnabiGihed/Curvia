@@ -1,12 +1,14 @@
-﻿using Curvia.API.Middleware.Identity;
-using Curvia.Persistence.EntityFrameworkCore.Features.MotorcycleCatalog.Seed;
-using Curvia.Persistence.EntityFrameworkCore.PersistenceContext;
-using Microsoft.EntityFrameworkCore;
-using Serilog;
+﻿using Serilog;
 using System.Reflection;
-using Templates.Core.Authentication.AspNetCore.Extensions;
+using Curvia.Infrastructure.Jobs;
+using Microsoft.EntityFrameworkCore;
+using Curvia.API.Middleware.Identity;
 using Templates.Core.Containers.API.Middleware;
+using Templates.Core.Authentication.AspNetCore.Extensions;
+using Templates.Core.Infrastructure.Scheduling.Extensions;
 using Templates.Core.Tools.DependencyInjection.Abstractions;
+using Curvia.Persistence.EntityFrameworkCore.PersistenceContext;
+using Curvia.Persistence.EntityFrameworkCore.Features.MotorcycleCatalog.Seed;
 
 namespace Curvia.API;
 
@@ -17,6 +19,8 @@ namespace Curvia.API;
 ///              - The HTTP middleware pipeline (exception handling, outbox, transactions, auth, routing)
 ///              - Swagger + Keycloak OAuth in development
 ///              - JIT user provisioning middleware
+///              - Hangfire dashboard (via Templates.Core.Infrastructure.Scheduling)
+///              - Awareness recurring-job registration
 ///              - Database reset/migration helpers
 ///              - Dependency-injection service installer discovery across assemblies
 /// </summary>
@@ -64,7 +68,22 @@ internal static class HostingExtensions
 		app.MapControllers();
 		#endregion
 
-		//app.RegisterAwarenessJobs(); has to be registered in infrastructure layer
+		#region Hangfire Dashboard
+		// Mounted at /hangfire — restrict to dev/internal networks in production via DashboardOptions.
+		app.UseHangfireDashboardWithOptions(opts =>
+		{
+			// Allow all in development; tighten authorization filters in production by
+			// replacing the empty array with a real IDashboardAuthorizationFilter.
+			opts.DashboardTitle = "Curvia — Background Jobs";
+		});
+		#endregion
+
+		#region Awareness recurring jobs
+		// AwarenessJobsSetup lives in Curvia.Infrastructure.Jobs and registers all
+		// speed-camera, hazard, road-work, incident, and cleanup recurring jobs with Hangfire.
+		// Must be called AFTER UseHangfireDashboard so the Hangfire server is fully initialised.
+		app.RegisterAwarenessJobs();
+		#endregion
 
 		return app;
 	}
@@ -135,7 +154,7 @@ internal static class HostingExtensions
 		}
 		catch (Exception ex)
 		{
-			app.Logger.LogError(ex, "Database migration failed.");
+			logger.LogError(ex, "Database migration failed.");
 		}
 	}
 

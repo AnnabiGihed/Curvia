@@ -3,8 +3,8 @@ using Hangfire;
 using Microsoft.AspNetCore.Builder;
 using Curvia.Infrastructure.Features.Awareness.Providers.Osm;
 using Curvia.Application.Features.Awareness.Commands.SyncHazards;
-using Curvia.Application.Features.Awareness.Commands.SyncRoadWorks;
 using Curvia.Application.Features.Awareness.Commands.SyncIncidents;
+using Curvia.Application.Features.Awareness.Commands.SyncRoadWorks;
 using Curvia.Application.Features.Awareness.Commands.SyncSpeedCameras;
 
 namespace Curvia.Infrastructure.Jobs;
@@ -13,8 +13,8 @@ namespace Curvia.Infrastructure.Jobs;
 /// Author      : Gihed Annabi
 /// Date        : 02-2026
 /// Purpose     : Registers all awareness data sync recurring jobs with Hangfire.
-///              Called once from Program.cs / HostingExtensions after the application
-///              is built and Hangfire is available.
+///              Called once from HostingExtensions.ConfigurePipeline after Hangfire
+///              has been initialised by AwarenessInfrastructureServiceInstaller.
 ///
 ///              Job schedule summary:
 ///
@@ -35,45 +35,71 @@ namespace Curvia.Infrastructure.Jobs;
 ///
 ///              All jobs dispatch MediatR commands so the sync logic stays in the
 ///              application layer (testable, not Hangfire-coupled).
+///              Hangfire creates a new DI scope per job execution — all scoped services
+///              (repositories, HTTP clients, IMediator) resolve correctly.
 /// </summary>
 public static class AwarenessJobsSetup
 {
+	/// <summary>
+	/// Registers all awareness recurring jobs with Hangfire's <see cref="RecurringJob"/> manager.
+	/// Idempotent — AddOrUpdate replaces any previously registered job with the same id.
+	/// </summary>
+	/// <param name="app">The application builder whose service provider Hangfire will use.</param>
 	public static void RegisterAwarenessJobs(this IApplicationBuilder app)
 	{
-		// Speed cameras: weekly per country
+		#region Speed cameras — weekly per country (Sunday 02:00 UTC)
 		foreach (var countryCode in CountryBoundingBoxes.AllCountryCodes)
 		{
 			var cc = countryCode; // closure capture
 
 			RecurringJob.AddOrUpdate(
 				recurringJobId: $"sync-speed-cameras-{cc.ToLower()}",
-				methodCall: (IMediator mediator) =>
-					mediator.Send(new SyncSpeedCamerasCommand(cc), CancellationToken.None),
-				cronExpression: Cron.Weekly(DayOfWeek.Sunday, 2, 0)); // Sunday 02:00 UTC
+				methodCall: (IMediator mediator) => mediator.Send(new SyncSpeedCamerasCommand(cc), CancellationToken.None),
+				cronExpression: Cron.Weekly(DayOfWeek.Sunday, 2, 0));
+		}
+		#endregion
+
+		#region Hazards — monthly per country (1st of month, 03:00 UTC)
+		foreach (var countryCode in CountryBoundingBoxes.AllCountryCodes)
+		{
+			var cc = countryCode;
 
 			RecurringJob.AddOrUpdate(
 				recurringJobId: $"sync-hazards-{cc.ToLower()}",
-				methodCall: (IMediator mediator) =>
-					mediator.Send(new SyncHazardsCommand(cc), CancellationToken.None),
-				cronExpression: "0 3 1 * *"); // 1st of every month, 03:00 UTC
+				methodCall: (IMediator mediator) => mediator.Send(new SyncHazardsCommand(cc), CancellationToken.None),
+				cronExpression: "0 3 1 * *");
+		}
+		#endregion
+
+		#region Road works — every 4 hours per country
+		foreach (var countryCode in CountryBoundingBoxes.AllCountryCodes)
+		{
+			var cc = countryCode;
 
 			RecurringJob.AddOrUpdate(
 				recurringJobId: $"sync-roadworks-{cc.ToLower()}",
-				methodCall: (IMediator mediator) =>
-					mediator.Send(new SyncRoadWorksCommand(cc), CancellationToken.None),
-				cronExpression: "0 */4 * * *"); // every 4 hours
+				methodCall: (IMediator mediator) => mediator.Send(new SyncRoadWorksCommand(cc), CancellationToken.None),
+				cronExpression: "0 */4 * * *");
+		}
+		#endregion
+
+		#region Incidents — every 3 minutes per country
+		foreach (var countryCode in CountryBoundingBoxes.AllCountryCodes)
+		{
+			var cc = countryCode;
 
 			RecurringJob.AddOrUpdate(
 				recurringJobId: $"sync-incidents-{cc.ToLower()}",
-				methodCall: (IMediator mediator) =>
-					mediator.Send(new SyncIncidentsCommand(cc), CancellationToken.None),
-				cronExpression: "*/3 * * * *"); // every 3 minutes
+				methodCall: (IMediator mediator) => mediator.Send(new SyncIncidentsCommand(cc), CancellationToken.None),
+				cronExpression: "*/3 * * * *");
 		}
+		#endregion
 
-		// Cleanup: expired road works + incidents — hourly
+		#region Cleanup — expired road works + incidents, hourly
 		RecurringJob.AddOrUpdate(
 			recurringJobId: "cleanup-expired-awareness",
 			methodCall: (AwarenessCleanupJob job) => job.RunAsync(CancellationToken.None),
 			cronExpression: Cron.Hourly());
+		#endregion
 	}
 }
