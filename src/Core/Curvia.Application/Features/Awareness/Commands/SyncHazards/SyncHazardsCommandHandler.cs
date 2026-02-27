@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using Templates.Core.Domain.Shared;
+using Curvia.Domain.Features.Awareness.Enums;
 using Curvia.Domain.Features.Awareness.Aggregates;
 using Curvia.Domain.Features.Awareness.Repositories;
 using Curvia.Application.Features.Awareness.Contracts.Records;
@@ -12,15 +13,23 @@ namespace Curvia.Application.Features.Awareness.Commands.SyncHazards;
 /// Author      : Gihed Annabi
 /// Date        : 02-2026
 /// Purpose     : Handles <see cref="SyncHazardsCommand"/>.
-///              Fetches permanent road-hazard records from all providers in parallel
-///              (resilient — one failing provider does not abort the others), deletes
-///              existing data per source, then bulk-inserts the fresh dataset.
-///              Hazards use a delete-then-reload strategy rather than per-record upsert
-///              because the data changes rarely and correctness of the full set matters more
-///              than minimising write operations.
+///              Fetches permanent road hazard records (potholes, dangerous crossings, landslide
+///              zones, etc.) from all registered providers in parallel (resilient — one failing
+///              provider does not abort the others), deduplicates hazards within 30 m of each
+///              other, deletes existing data per source for the country, then upserts the
+///              deduplicated dataset.
+///              Runs monthly per country — permanent hazard locations rarely change.
 /// </summary>
 internal sealed class SyncHazardsCommandHandler : ICommandHandler<SyncHazardsCommand>
 {
+	#region Constants
+	/// <summary>Maximum distance in metres between two hazards from different sources to be considered the same physical hazard.</summary>
+	private const double DeduplicationDistanceMeters = 30.0;
+
+	/// <summary>Earth's approximate radius in metres, used in the Haversine distance calculation.</summary>
+	private const double EarthRadiusMeters = 6_371_000.0;
+	#endregion
+
 	#region Dependencies
 	/// <summary>All registered hazard data providers.</summary>
 	private readonly IEnumerable<IHazardDataProvider> _providers;
@@ -49,7 +58,7 @@ internal sealed class SyncHazardsCommandHandler : ICommandHandler<SyncHazardsCom
 
 	#region ICommandHandler
 	/// <summary>
-	/// Executes the hazard sync pipeline: fetch in parallel (resilient), delete existing per source, then bulk insert.
+	/// Executes the hazard sync pipeline: fetch in parallel (resilient), deduplicate, delete existing per source, then upsert.
 	/// </summary>
 	/// <param name="command">Contains the ISO 3166-1 alpha-2 country code to sync.</param>
 	/// <param name="ct">Cancellation token.</param>
@@ -59,39 +68,55 @@ internal sealed class SyncHazardsCommandHandler : ICommandHandler<SyncHazardsCom
 		var country = command.CountryCode.ToUpperInvariant();
 		_logger.LogInformation("Hazard sync started for country {Country}.", country);
 
-		// Resilient parallel fetch — one provider failing does not abort the others.
-		var records = await FetchFromAllProvidersAsync(country, ct);
+		var allRecords = await FetchFromAllProvidersAsync(country, ct);
 
-		if (records.Count == 0)
+		if (allRecords.Count == 0)
 		{
 			_logger.LogWarning("Hazard sync for {Country}: no records returned from any provider.", country);
 			return Result.Success();
 		}
 
-		_logger.LogInformation("Hazard sync for {Country}: {Count} records fetched. Deleting existing data per source.", country, records.Count);
+		var deduplicated = DeduplicateHazards(allRecords);
+		_logger.LogInformation("Hazard sync for {Country}: {Total} raw records → {Deduped} after deduplication.", country, allRecords.Count, deduplicated.Count);
 
-		// Delete existing data per source before reload.
 		foreach (var providerName in _providers.Select(p => p.ProviderName).Distinct())
 			await _repository.DeleteBySourceAsync(providerName, country, ct);
 
-		// Bulk insert fresh dataset.
 		var inserted = 0;
+		var updated = 0;
 		var skipped = 0;
 
-		foreach (var record in records)
+		foreach (var record in deduplicated)
 		{
-			var hazardResult = Hazard.Create(record.ExternalId, DeriveSource(record.ExternalId), country, record.Latitude, record.Longitude, record.HazardType, record.Description);
-			if (hazardResult.IsFailure)
+			var existing = await _repository.FindByExternalIdAsync(record.ExternalId, record.Source, country, ct);
+
+			if (existing is null)
 			{
-				_logger.LogWarning("Hazard sync for {Country}: failed to create hazard {ExternalId} — {Error}.", country, record.ExternalId, hazardResult.Error);
-				skipped++;
-				continue;
+				var hazardResult = Hazard.Create(record.ExternalId, record.Source, country, record.Latitude, record.Longitude, record.HazardType, record.Description);
+				if (hazardResult.IsFailure)
+				{
+					_logger.LogWarning("Hazard sync for {Country}: failed to create hazard {ExternalId} — {Error}.", country, record.ExternalId, hazardResult.Error);
+					skipped++;
+					continue;
+				}
+				await _repository.AddAsync(hazardResult.Value, ct);
+				inserted++;
 			}
-			await _repository.AddAsync(hazardResult.Value, ct);
-			inserted++;
+			else
+			{
+				var syncResult = existing.Sync(record.Latitude, record.Longitude, record.HazardType, record.Description);
+				if (syncResult.IsFailure)
+				{
+					_logger.LogWarning("Hazard sync for {Country}: failed to sync hazard {ExternalId} — {Error}.", country, record.ExternalId, syncResult.Error);
+					skipped++;
+					continue;
+				}
+				await _repository.UpdateAsync(existing, ct);
+				updated++;
+			}
 		}
 
-		_logger.LogInformation("Hazard sync for {Country} complete: {Inserted} inserted, {Skipped} skipped.", country, inserted, skipped);
+		_logger.LogInformation("Hazard sync for {Country} complete: {Inserted} inserted, {Updated} updated, {Skipped} skipped.", country, inserted, updated, skipped);
 		return Result.Success();
 	}
 	#endregion
@@ -99,41 +124,65 @@ internal sealed class SyncHazardsCommandHandler : ICommandHandler<SyncHazardsCom
 	#region Private helpers
 	/// <summary>
 	/// Fetches hazard records from all providers in parallel.
-	/// Each provider is wrapped in an individual try/catch so that one failing provider
-	/// does not cancel results from the remaining providers.
+	/// Individual provider failures are caught and logged — they do not abort the sync.
 	/// </summary>
-	/// <param name="country">ISO 3166-1 alpha-2 country code.</param>
+	/// <param name="country">Uppercase ISO country code.</param>
 	/// <param name="ct">Cancellation token.</param>
-	/// <returns>Combined list of raw hazard records from all providers that succeeded.</returns>
+	/// <returns>Flat list of all records from all successful providers.</returns>
 	private async Task<List<HazardRecord>> FetchFromAllProvidersAsync(string country, CancellationToken ct)
 	{
-		var tasks = _providers.Select(async provider =>
+		var tasks = _providers.Select(async p =>
 		{
-			try
-			{
-				return await provider.FetchAsync(country, ct);
-			}
+			try { return await p.FetchAsync(country, ct); }
 			catch (Exception ex)
 			{
-				_logger.LogError(ex, "Hazard provider {Provider} failed for country {Country}.", provider.ProviderName, country);
-				return Enumerable.Empty<HazardRecord>();
+				_logger.LogError(ex, "Hazard provider {Provider} failed for {Country}.", p.ProviderName, country);
+				return Array.Empty<HazardRecord>();
 			}
-		}).ToList();
+		});
 
 		var results = await Task.WhenAll(tasks);
 		return results.SelectMany(r => r).ToList();
 	}
 
 	/// <summary>
-	/// Derives the source name from the external ID prefix.
+	/// Removes duplicate hazards (same physical location, different sources) using Haversine distance.
+	/// When two hazards from different sources are within <see cref="DeduplicationDistanceMeters"/>,
+	/// the one that appears first in the list is kept.
 	/// </summary>
-	/// <param name="externalId">The external identifier of the hazard record.</param>
-	/// <returns>"osm" for OSM-prefixed IDs, "unknown" for all others.</returns>
-	private static string DeriveSource(string externalId)
+	/// <param name="records">Flat list of all records from all providers.</param>
+	/// <returns>Deduplicated list.</returns>
+	private static List<HazardRecord> DeduplicateHazards(List<HazardRecord> records)
 	{
-		if (externalId.StartsWith("osm:", StringComparison.OrdinalIgnoreCase))
-			return "osm";
-		return "unknown";
+		var kept = new List<HazardRecord>();
+
+		foreach (var record in records)
+		{
+			var isDuplicate = kept.Any(k =>
+				k.Source != record.Source &&
+				Haversine(k.Latitude, k.Longitude, record.Latitude, record.Longitude) <= DeduplicationDistanceMeters);
+
+			if (!isDuplicate)
+				kept.Add(record);
+		}
+
+		return kept;
+	}
+
+	/// <summary>
+	/// Computes the Haversine distance in metres between two WGS84 coordinates.
+	/// </summary>
+	/// <param name="lat1">Latitude of the first point.</param>
+	/// <param name="lon1">Longitude of the first point.</param>
+	/// <param name="lat2">Latitude of the second point.</param>
+	/// <param name="lon2">Longitude of the second point.</param>
+	/// <returns>Distance in metres.</returns>
+	private static double Haversine(double lat1, double lon1, double lat2, double lon2)
+	{
+		var dLat = (lat2 - lat1) * Math.PI / 180.0;
+		var dLon = (lon2 - lon1) * Math.PI / 180.0;
+		var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) + Math.Cos(lat1 * Math.PI / 180.0) * Math.Cos(lat2 * Math.PI / 180.0) * Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
+		return EarthRadiusMeters * 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
 	}
 	#endregion
 }
