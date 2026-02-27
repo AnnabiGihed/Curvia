@@ -3,6 +3,7 @@ using Curvia.Domain.Features.Users.Aggregate;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Curvia.Persistence.EntityFrameworkCore.Constants;
 using Curvia.Domain.Features.MotorcycleCatalog.Aggregates;
+using Curvia.Domain.Features.MotorcycleCatalog.ValueObjects;
 
 namespace Curvia.Persistence.EntityFrameworkCore.Features.MotorcycleCatalog.Configurations;
 
@@ -10,6 +11,7 @@ namespace Curvia.Persistence.EntityFrameworkCore.Features.MotorcycleCatalog.Conf
 /// Author      : Gihed Annabi
 /// Date        : 02-2026
 /// Purpose     : EF Core configuration for the MotorcycleMaker aggregate root.
+///              Name is now mapped via the <see cref="MakerName"/> value object.
 /// </summary>
 internal sealed class MotorcycleMakerConfiguration : IEntityTypeConfiguration<MotorcycleMaker>
 {
@@ -17,17 +19,19 @@ internal sealed class MotorcycleMakerConfiguration : IEntityTypeConfiguration<Mo
 	/// <summary>
 	/// Configures EF Core mapping for <see cref="MotorcycleMaker"/>:
 	/// table name, indexes, enum/status conversion, soft-delete query filter,
-	/// primary key conversion, owned audit mapping, and optional SuggestedByUserId persistence.
+	/// primary key conversion, MakerName VO conversion, and optional SuggestedByUserId persistence.
 	/// </summary>
 	/// <param name="builder">Entity type builder for <see cref="MotorcycleMaker"/>.</param>
 	public void Configure(EntityTypeBuilder<MotorcycleMaker> builder)
 	{
 		builder.ToTable(DbTableNames.MotorcycleMakers);
 
-		#region Name
+		#region Name (VO)
 		builder.Property(x => x.Name)
 			.IsRequired()
-			.HasMaxLength(100);
+			.HasConversion(vo => vo.Value, raw => MakerName.FromPersistence(raw))
+			.HasMaxLength(MakerName.MaxLength)
+			.HasColumnName("Name");
 
 		builder.HasIndex(x => x.Name)
 			.HasDatabaseName("IX_MotorcycleMakers_Name");

@@ -17,12 +17,6 @@ public interface IMotorcycleCatalogModelRepository : IAsyncCommandRepository<Mot
 	Task<IReadOnlyList<MotorcycleCatalogModel>> GetAllPendingAsync(CancellationToken ct = default);
 
 	/// <summary>
-	/// Find by ID (any status).
-	/// Returns null if not found or soft-deleted.
-	/// </summary>
-	Task<MotorcycleCatalogModel?> FindByIdAsync(MotorcycleCatalogModelId id, CancellationToken ct = default);
-
-	/// <summary>
 	/// Case-insensitive name check within a maker's Official models.
 	/// Used to prevent duplicate suggestions.
 	/// </summary>

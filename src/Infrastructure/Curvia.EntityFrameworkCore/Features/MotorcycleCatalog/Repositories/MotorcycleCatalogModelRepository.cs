@@ -35,13 +35,6 @@ internal sealed class MotorcycleCatalogModelRepository : BaseAsyncCommandReposit
 	}
 
 	/// <inheritdoc/>
-	public async Task<MotorcycleCatalogModel?> FindByIdAsync(MotorcycleCatalogModelId id, CancellationToken ct = default)
-	{
-		return await DbContext.Set<MotorcycleCatalogModel>()
-			.FirstOrDefaultAsync(m => m.Id == id, ct);
-	}
-
-	/// <inheritdoc/>
 	public async Task<bool> OfficialNameExistsAsync(MotorcycleMakerId makerId, string name, CancellationToken ct = default)
 	{
 		return await DbContext.Set<MotorcycleCatalogModel>()

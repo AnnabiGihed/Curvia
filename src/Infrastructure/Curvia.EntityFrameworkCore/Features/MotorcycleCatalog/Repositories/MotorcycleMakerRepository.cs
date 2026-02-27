@@ -28,7 +28,7 @@ internal sealed class MotorcycleMakerRepository : BaseAsyncCommandRepository<Mot
 	public async Task<bool> OfficialNameExistsAsync(string name, CancellationToken ct = default)
 	{
 		return await DbContext.Set<MotorcycleMaker>()
-			.AnyAsync(m => m.Status == CatalogItemStatus.Official && m.Name.ToLower() == name.Trim().ToLower(), ct);
+			.AnyAsync(m => m.Status == CatalogItemStatus.Official && m.Name.Value.ToLower() == name.Trim().ToLower(), ct);
 	}
 
 	/// <inheritdoc/>
