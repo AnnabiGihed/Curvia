@@ -11,15 +11,22 @@ namespace Curvia.Persistence.EntityFrameworkCore.Features.Awareness.Repositories
 /// Author      : Gihed Annabi
 /// Date        : 02-2026
 /// Purpose     : EF Core implementation of <see cref="IRoadWorkRepository"/>.
-///              GetInAreaAsync filters to active records server-side.
+///              GetInAreaAsync filters to currently-active records server-side
+///              (ValidFromUtc ≤ UtcNow &lt; ValidUntilUtc).
 /// </summary>
-internal sealed class RoadWorkRepository
-	: BaseAsyncCommandRepository<RoadWork, RoadWorkId>, IRoadWorkRepository
+internal sealed class RoadWorkRepository : BaseAsyncCommandRepository<RoadWork, RoadWorkId>, IRoadWorkRepository
 {
+	#region Constructor
+	/// <summary>
+	/// Initializes a new instance of <see cref="RoadWorkRepository"/> backed by <see cref="CurviaDbContext"/>.
+	/// </summary>
+	/// <param name="dbContext">EF Core database context.</param>
 	public RoadWorkRepository(CurviaDbContext dbContext) : base(dbContext) { }
+	#endregion
 
-	public async Task<IReadOnlyList<RoadWork>> GetInAreaAsync(
-		BoundingBox bbox, CancellationToken ct = default)
+	#region IRoadWorkRepository
+	/// <inheritdoc/>
+	public async Task<IReadOnlyList<RoadWork>> GetInAreaAsync(BoundingBox bbox, CancellationToken ct = default)
 	{
 		var now = DateTime.UtcNow;
 		return await DbContext.Set<RoadWork>()
@@ -30,24 +37,25 @@ internal sealed class RoadWorkRepository
 			.ToListAsync(ct);
 	}
 
-	public async Task<RoadWork?> FindByExternalIdAsync(
-		string externalId, string source, string countryCode, CancellationToken ct = default)
+	/// <inheritdoc/>
+	public async Task<RoadWork?> FindByExternalIdAsync(string externalId, string source, string countryCode, CancellationToken ct = default)
 	{
 		return await DbContext.Set<RoadWork>()
 			.FirstOrDefaultAsync(r =>
 				r.ExternalId.Value == externalId &&
-				r.Source == source &&
-				r.CountryCode == countryCode, ct);
+				r.Source.Value == source &&
+				r.CountryCode.Value == countryCode, ct);
 	}
 
-	public async Task DeleteBySourceAsync(
-		string source, string countryCode, CancellationToken ct = default)
+	/// <inheritdoc/>
+	public async Task DeleteBySourceAsync(string source, string countryCode, CancellationToken ct = default)
 	{
 		await DbContext.Set<RoadWork>()
-			.Where(r => r.Source == source && r.CountryCode == countryCode)
+			.Where(r => r.Source.Value == source && r.CountryCode.Value == countryCode)
 			.ExecuteDeleteAsync(ct);
 	}
 
+	/// <inheritdoc/>
 	public async Task DeleteExpiredAsync(CancellationToken ct = default)
 	{
 		var now = DateTime.UtcNow;
@@ -55,4 +63,5 @@ internal sealed class RoadWorkRepository
 			.Where(r => r.ValidUntilUtc < now)
 			.ExecuteDeleteAsync(ct);
 	}
+	#endregion
 }

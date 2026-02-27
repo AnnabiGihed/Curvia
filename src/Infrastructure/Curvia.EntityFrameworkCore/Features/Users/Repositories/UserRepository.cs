@@ -28,14 +28,14 @@ internal sealed class UserRepository : BaseAsyncCommandRepository<User, UserId>,
 	public async Task<bool> EmailExistsAsync(UserEmail email, CancellationToken cancellationToken = default)
 	{
 		return await DbContext.Set<User>()
-			.AnyAsync(u => u.Email == email, cancellationToken);
+			.AnyAsync(u => u.Email.Value == email.Value, cancellationToken);
 	}
 
 	/// <inheritdoc/>
 	public async Task<User?> FindByKeycloakIdAsync(KeycloakSubject keycloakId, CancellationToken cancellationToken = default)
 	{
 		return await DbContext.Set<User>()
-			.FirstOrDefaultAsync(u => u.KeycloakId == keycloakId, cancellationToken);
+			.FirstOrDefaultAsync(u => u.KeycloakId.Value == keycloakId.Value, cancellationToken);
 	}
 	#endregion
 }

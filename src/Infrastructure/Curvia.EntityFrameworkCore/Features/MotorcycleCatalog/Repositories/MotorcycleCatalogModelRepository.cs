@@ -47,7 +47,7 @@ internal sealed class MotorcycleCatalogModelRepository : BaseAsyncCommandReposit
 		return await DbContext.Set<MotorcycleCatalogModel>()
 			.AsNoTracking()
 			.Where(m => m.MakerId == makerId && m.Status == CatalogItemStatus.Official)
-			.OrderBy(m => m.Name)
+			.OrderBy(m => m.Name.Value)
 			.ToListAsync(ct);
 	}
 	#endregion
