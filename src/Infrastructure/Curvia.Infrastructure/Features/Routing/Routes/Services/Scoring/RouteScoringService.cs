@@ -12,6 +12,12 @@ namespace Curvia.Infrastructure.Features.Routing.Routes.Services.Scoring;
 /// Author      : Gihed Annabi
 /// Date        : 02-2026
 /// Purpose     : Scores Valhalla route candidates using real geometric and elevation analysis.
+///              Applies hard constraints (MaxDetourRatio VO, MaxDurationSeconds) that immediately
+///              disqualify candidates, and soft penalties (distance overage, excessive ride time)
+///              that reduce the score proportionally.
+///              The curvature score is derived from decoded polyline geometry.
+///              The elevation score is derived from a Valhalla /height API call.
+///              The scenery proxy is derived from the average road speed (slower = more scenic).
 /// </summary>
 internal sealed class RouteScoringService : IRouteScoringService
 {
@@ -22,11 +28,11 @@ internal sealed class RouteScoringService : IRouteScoringService
 	/// Rides under this threshold receive zero time penalty.
 	/// Penalising normal 2–4 hour rides was incorrectly discouraging long enjoyable routes.
 	/// </summary>
-	private const double TimePenaltyThresholdSeconds = 6 * 3600; // 6 hours
+	private const double TimePenaltyThresholdSeconds = 6 * 3600;
 
 	/// <summary>
-	/// Penalty rate per hour applied only beyond the threshold.
-	/// 0.1 pts/hour means an 8-hour ride costs 0.2 extra pts — a soft discouragement only.
+	/// Penalty rate per hour applied only beyond the 6-hour threshold.
+	/// 0.1 pts/hour means an 8-hour ride costs 0.2 pts — a soft discouragement only.
 	/// </summary>
 	private const double TimePenaltyRatePerHour = 0.1;
 	#endregion
@@ -42,90 +48,8 @@ internal sealed class RouteScoringService : IRouteScoringService
 	}
 	#endregion
 
-	#region Private — Helpers
-	/// <summary>
-	/// Converts degrees to radians.
-	/// </summary>
-	private static double ToRad(double degrees)
-	{
-		return degrees * Math.PI / 180.0;
-	}
-
-	/// <summary>
-	/// Computes Haversine distance in meters between two <see cref="GeoCoordinate"/> points.
-	/// </summary>
-	private static double HaversineMeters(GeoCoordinate a, GeoCoordinate b)
-	{
-		const double R = 6_371_000.0;
-		var dLat = ToRad(b.Latitude - a.Latitude);
-		var dLon = ToRad(b.Longitude - a.Longitude);
-		var lat1 = ToRad(a.Latitude);
-		var lat2 = ToRad(b.Latitude);
-		var sinDLat = Math.Sin(dLat / 2);
-		var sinDLon = Math.Sin(dLon / 2);
-		var h = sinDLat * sinDLat + Math.Cos(lat1) * Math.Cos(lat2) * sinDLon * sinDLon;
-		return 2 * R * Math.Asin(Math.Min(1.0, Math.Sqrt(h)));
-	}
-
-	/// <summary>
-	/// Computes the baseline distance used to evaluate detour ratio.
-	/// - Point-to-point plans: baseline is the Haversine distance between Start and End (fallback to route length if tiny).
-	/// - Loop plans: baseline is the target loop distance when provided.
-	/// - Otherwise: baseline is the route length.
-	/// </summary>
-	private static double ComputeBaselineMeters(RoutePlan plan, double routeMeters)
-	{
-		if (plan.End is not null)
-		{
-			var haversine = HaversineMeters(plan.Start, plan.End);
-			return haversine > 1.0 ? haversine : routeMeters;
-		}
-
-		if (plan.LoopSpec?.TargetDistance is not null)
-			return plan.LoopSpec.TargetDistance.Meters;
-
-		return routeMeters;
-	}
-	#endregion
-
-	#region Private — Elevation
-	/// <summary>
-	/// Computes an elevation-based score in the range [0, 1] by sampling heights along the route geometry.
-	/// Falls back to 0.0 if the /height call fails or returns unusable data.
-	/// </summary>
-	private async Task<double> ComputeElevationScoreAsync(IReadOnlyList<GeoCoordinate> points, double routeMeters, CancellationToken cancellationToken)
-	{
-		try
-		{
-			var shapeLocations = points
-				.Select(p => new ValhallaLocation(p.Latitude, p.Longitude, "through"))
-				.ToList();
-
-			var heightRequest = new ValhallaHeightRequest(Shape: shapeLocations, Range: false, ResampleDistance: null);
-
-			var heightResponse = await _heightClient.GetHeightsAsync(heightRequest, cancellationToken);
-
-			return ElevationAnalyzer.ComputeElevationScore(heightResponse.Height, routeMeters);
-		}
-		catch
-		{
-			return 0.0;
-		}
-	}
-	#endregion
-
 	#region IRouteScoringService
 	/// <inheritdoc/>
-	/// <summary>
-	/// Scores a Valhalla candidate route for a given <see cref="RoutePlan"/> by combining:
-	/// - curvature score (geometry-based)
-	/// - elevation score (height sampling-based)
-	/// - scenery proxy (lower average speed suggests more scenic roads)
-	/// Then applies:
-	/// - hard constraints (max duration, max detour ratio)
-	/// - soft penalties (distance over cap, time beyond a threshold)
-	/// Returns negative infinity for invalid inputs and a large negative number for hard constraint violations.
-	/// </summary>
 	public async Task<double> ScoreAsync(RouteCandidate candidate, RoutePlan plan, CancellationToken cancellationToken = default)
 	{
 		#region Guards
@@ -151,7 +75,8 @@ internal sealed class RouteScoringService : IRouteScoringService
 		var baselineMeters = ComputeBaselineMeters(plan, routeMeters);
 		var detourRatio = routeMeters / baselineMeters;
 
-		if (detourRatio > plan.Constraints.MaxDetourRatio)
+		// MaxDetourRatio is now a typed VO — access the underlying double via .Value
+		if (detourRatio > plan.Constraints.MaxDetourRatio.Value)
 			return -1_000_000;
 		#endregion
 
@@ -184,14 +109,16 @@ internal sealed class RouteScoringService : IRouteScoringService
 		#endregion
 
 		#region Fun score — weighted combination
+		// ScoringWeights exposes .Curves/.Elevation/.Scenery as double accessors (backward-compatible)
 		var weights = plan.ScoringProfile.Weights;
 
 		var weightedCurvature = curvatureScore * weights.Curves;
 		var weightedElevation = elevationScore * weights.Elevation;
 		var weightedScenery = sceneryScore * weights.Scenery;
 
-		var rawFunScore = weightedCurvature * 1.8 + weightedElevation * 1.2 + weightedScenery * 1.0 - boredomPenalty;
+		var rawFunScore = (weightedCurvature * 1.8) + (weightedElevation * 1.2) + (weightedScenery * 1.0) - boredomPenalty;
 
+		// FunFactor amplifies the raw score — higher FunFactor = more aggressive detour preference
 		var funScore = rawFunScore * (1.0 + plan.ScoringProfile.FunFactor / 10.0);
 		#endregion
 
@@ -218,6 +145,72 @@ internal sealed class RouteScoringService : IRouteScoringService
 		#region Final score
 		return funScore - timePenalty - distancePenalty;
 		#endregion
+	}
+	#endregion
+
+	#region Private — Baseline distance
+	/// <summary>
+	/// Computes the baseline distance used to evaluate the detour ratio.
+	/// Point-to-point: Haversine distance between Start and End (fallback: route length).
+	/// Loop: target loop distance when provided.
+	/// Otherwise: route length.
+	/// </summary>
+	private static double ComputeBaselineMeters(RoutePlan plan, double routeMeters)
+	{
+		if (plan.End is not null)
+		{
+			var haversine = HaversineMeters(plan.Start, plan.End);
+			return haversine > 1.0 ? haversine : routeMeters;
+		}
+
+		if (plan.LoopSpec?.TargetDistance is not null)
+			return plan.LoopSpec.TargetDistance.Meters;
+
+		return routeMeters;
+	}
+	#endregion
+
+	#region Private — Elevation
+	/// <summary>
+	/// Computes an elevation-based score in the range [0, 1] by sampling heights along the route geometry.
+	/// Falls back to 0.0 if the /height call fails or returns unusable data.
+	/// </summary>
+	private async Task<double> ComputeElevationScoreAsync(IReadOnlyList<GeoCoordinate> points, double routeMeters, CancellationToken cancellationToken)
+	{
+		try
+		{
+			var shapeLocations = points
+				.Select(p => new ValhallaLocation(p.Latitude, p.Longitude, "through"))
+				.ToList();
+
+			var heightRequest = new ValhallaHeightRequest(Shape: shapeLocations, Range: false, ResampleDistance: null);
+			var heightResponse = await _heightClient.GetHeightsAsync(heightRequest, cancellationToken);
+
+			return ElevationAnalyzer.ComputeElevationScore(heightResponse.Height, routeMeters);
+		}
+		catch
+		{
+			return 0.0;
+		}
+	}
+	#endregion
+
+	#region Private — Helpers
+	/// <summary>Converts degrees to radians.</summary>
+	private static double ToRad(double degrees) => degrees * Math.PI / 180.0;
+
+	/// <summary>Computes Haversine distance in metres between two <see cref="GeoCoordinate"/> points.</summary>
+	private static double HaversineMeters(GeoCoordinate a, GeoCoordinate b)
+	{
+		const double R = 6_371_000.0;
+		var dLat = ToRad(b.Latitude - a.Latitude);
+		var dLon = ToRad(b.Longitude - a.Longitude);
+		var lat1 = ToRad(a.Latitude);
+		var lat2 = ToRad(b.Latitude);
+		var sinDLat = Math.Sin(dLat / 2);
+		var sinDLon = Math.Sin(dLon / 2);
+		var h = (sinDLat * sinDLat) + (Math.Cos(lat1) * Math.Cos(lat2) * sinDLon * sinDLon);
+		return 2 * R * Math.Asin(Math.Min(1.0, Math.Sqrt(h)));
 	}
 	#endregion
 }

@@ -9,10 +9,12 @@ namespace Curvia.Application.Features.Routes.Commands.Generate;
 /// Date        : 02-2026
 /// Purpose     : FluentValidation validator for <see cref="GenerateRouteCommand"/>.
 ///              Validates coordinates, trip mode exclusivity, RoundTrip constraints,
-///              preset/custom weight rules, duration, unpaved, urban tolerance and waypoints.
+///              preset/custom weight rules, constraints, urban tolerance, and waypoints.
+///              New presets (Hilly, Scenic, MaxFun) are automatically covered by IsInEnum().
 /// </summary>
 internal sealed class GenerateRouteCommandValidator : AbstractValidator<GenerateRouteCommand>
 {
+	/// <summary>Initialises all validation rules for <see cref="GenerateRouteCommand"/>.</summary>
 	public GenerateRouteCommandValidator()
 	{
 		#region Origin coordinates
@@ -77,7 +79,7 @@ internal sealed class GenerateRouteCommandValidator : AbstractValidator<Generate
 		#region Preset and custom weights
 		RuleFor(x => x.Preset)
 			.IsInEnum()
-			.WithMessage("Preset must be a valid RoutePreset value.");
+			.WithMessage("Preset must be a valid RoutePreset value (0=Twisty, 1=Panoramic, 2=Balanced, 3=Custom, 4=Hilly, 5=Scenic, 6=MaxFun).");
 
 		When(x => x.Preset == RoutePreset.Custom, () =>
 		{
@@ -105,8 +107,8 @@ internal sealed class GenerateRouteCommandValidator : AbstractValidator<Generate
 
 		#region Constraints
 		RuleFor(x => x.MaxDetourRatio)
-			.InclusiveBetween(1.0, 5.0)
-			.WithMessage("MaxDetourRatio must be between 1.0 and 5.0.");
+			.InclusiveBetween(1.0, 4.0)
+			.WithMessage("MaxDetourRatio must be between 1.0 and 4.0.");
 
 		When(x => x.MaxDistanceMeters.HasValue, () =>
 		{

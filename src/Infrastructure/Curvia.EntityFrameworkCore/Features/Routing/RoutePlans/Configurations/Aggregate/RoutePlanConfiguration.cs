@@ -1,7 +1,9 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Curvia.Persistence.EntityFrameworkCore.Constants;
+using Curvia.Domain.Features.Routing.Shared.ValueObjects;
 using Curvia.Domain.Features.Routing.RoutePlans.Aggregate;
+using Curvia.Domain.Features.Routing.RoutePlans.ValueObjects;
 
 namespace Curvia.Persistence.EntityFrameworkCore.Features.Routing.RoutePlans.Configurations.Aggregate;
 
@@ -11,16 +13,22 @@ namespace Curvia.Persistence.EntityFrameworkCore.Features.Routing.RoutePlans.Con
 /// Purpose     : EF Core entity type configuration for the <see cref="RoutePlan"/> aggregate.
 ///              Maps all owned value objects (Start, End, LoopSpec, Constraints, ScoringProfile, Waypoints)
 ///              to the RoutePlans table using owned-type conventions.
-///              New columns added: IsLoop/ReturnStrategy, MaxDurationSeconds,
-///              AvoidUnpaved, UrbanTolerance.
+///
+///              Changes in this revision:
+///                - <see cref="RoutingConstraints.MaxDetourRatio"/> mapped with VO conversion
+///                  (was raw double; underlying column type unchanged).
+///                - <see cref="ScoringWeights"/> inner weights mapped with <see cref="ScoringWeight"/>
+///                  VO conversion (was raw double; underlying column types unchanged).
+///                - <see cref="RoutingConstraints.AvoidFerries"/> column added.
+///                - <see cref="RoutingConstraints.AvoidMotorwayLinks"/> column added.
 /// </summary>
 internal sealed class RoutePlanConfiguration : IEntityTypeConfiguration<RoutePlan>
 {
 	#region IEntityTypeConfiguration<RoutePlan>
 	/// <summary>
 	/// Configures EF Core mapping for <see cref="RoutePlan"/>:
-	/// table name, primary key, and owned types flattening (waypoints, start/end, constraints,
-	/// scoring profile, and optional loop specification).
+	/// table name, primary key, and owned types flattening for waypoints, coordinates,
+	/// constraints, scoring profile, and loop specification.
 	/// </summary>
 	/// <param name="builder">Entity type builder for <see cref="RoutePlan"/>.</param>
 	public void Configure(EntityTypeBuilder<RoutePlan> builder)
@@ -39,12 +47,8 @@ internal sealed class RoutePlanConfiguration : IEntityTypeConfiguration<RoutePla
 		builder.OwnsMany(x => x.Waypoints, waypoint =>
 		{
 			waypoint.ToTable(DbTableNames.RoutePlanWaypoints);
-
 			waypoint.WithOwner().HasForeignKey("RoutePlanId");
-
-			waypoint.Property<Guid>("Id")
-				.ValueGeneratedOnAdd();
-
+			waypoint.Property<Guid>("Id").ValueGeneratedOnAdd();
 			waypoint.HasKey("Id");
 
 			waypoint.OwnsOne(w => w.Location, loc =>
@@ -56,85 +60,95 @@ internal sealed class RoutePlanConfiguration : IEntityTypeConfiguration<RoutePla
 		#endregion
 
 		#region Properties — Start / End
-		builder.OwnsOne(x => x.End, end =>
-		{
-			end.Property(p => p.Latitude)
-				.HasColumnName("EndLatitude");
-
-			end.Property(p => p.Longitude)
-				.HasColumnName("EndLongitude");
-		});
-
 		builder.OwnsOne(x => x.Start, start =>
 		{
-			start.Property(p => p.Latitude)
-				.HasColumnName("StartLatitude")
-				.IsRequired();
+			start.Property(p => p.Latitude).HasColumnName("StartLatitude").IsRequired();
+			start.Property(p => p.Longitude).HasColumnName("StartLongitude").IsRequired();
+		});
 
-			start.Property(p => p.Longitude)
-				.HasColumnName("StartLongitude")
-				.IsRequired();
+		builder.OwnsOne(x => x.End, end =>
+		{
+			end.Property(p => p.Latitude).HasColumnName("EndLatitude");
+			end.Property(p => p.Longitude).HasColumnName("EndLongitude");
 		});
 		#endregion
 
 		#region Properties — Constraints
 		builder.OwnsOne(x => x.Constraints, constraints =>
 		{
+			// MaxDetourRatio is now a typed VO — map via value conversion (column type unchanged: FLOAT)
 			constraints.Property(p => p.MaxDetourRatio)
+				.IsRequired()
+				.HasConversion(vo => vo.Value, raw => MaxDetourRatio.FromPersistence(raw))
 				.HasColumnName("MaxDetourRatio")
-				.IsRequired();
+				.HasColumnType("FLOAT");
 
 			constraints.Property(p => p.AvoidHighways)
-				.HasColumnName("AvoidHighways")
-				.IsRequired();
+				.IsRequired()
+				.HasColumnName("AvoidHighways");
 
 			constraints.Property(p => p.AvoidTolls)
-				.HasColumnName("AvoidTolls")
-				.IsRequired();
+				.IsRequired()
+				.HasColumnName("AvoidTolls");
+
+			constraints.Property(p => p.AvoidFerries)
+				.IsRequired()
+				.HasColumnName("AvoidFerries");
 
 			constraints.Property(p => p.AvoidUnpaved)
-				.HasColumnName("AvoidUnpaved")
-				.IsRequired();
+				.IsRequired()
+				.HasColumnName("AvoidUnpaved");
 
-			// Stored as int (enum value)
+			constraints.Property(p => p.AvoidMotorwayLinks)
+				.IsRequired()
+				.HasColumnName("AvoidMotorwayLinks");
+
+			// UrbanTolerance stored as INT (enum ordinal)
 			constraints.Property(p => p.UrbanTolerance)
-				.HasColumnName("UrbanTolerance")
+				.IsRequired()
 				.HasConversion<int>()
-				.IsRequired();
+				.HasColumnName("UrbanTolerance");
 
 			constraints.Property(p => p.MaxDurationSeconds)
-				.HasColumnName("MaxDurationSeconds")
-				.IsRequired(false);
+				.IsRequired(false)
+				.HasColumnName("MaxDurationSeconds");
 
 			constraints.OwnsOne(p => p.MaxDistance, maxDist =>
 			{
-				maxDist.Property(d => d.Meters)
-					.HasColumnName("MaxDistanceMeters");
+				maxDist.Property(d => d.Meters).HasColumnName("MaxDistanceMeters");
 			});
 		});
-
 		#endregion
 
 		#region Properties — ScoringProfile
 		builder.OwnsOne(x => x.ScoringProfile, profile =>
 		{
 			profile.Property(p => p.FunFactor)
+				.IsRequired()
 				.HasColumnName("FunFactor")
-				.IsRequired();
+				.HasColumnType("FLOAT");
 
+			// ScoringWeights now holds ScoringWeight VOs internally — map each with VO conversion
+			// Column names unchanged from the original schema (WeightCurves, WeightElevation, WeightScenery)
 			profile.OwnsOne(p => p.Weights, weights =>
 			{
-				weights.Property(w => w.Curves)
+				weights.Property(w => w.CurvesWeight)
+					.IsRequired()
+					.HasConversion(vo => vo.Value, raw => ScoringWeight.FromPersistence(raw))
 					.HasColumnName("WeightCurves")
-					.IsRequired();
+					.HasColumnType("FLOAT");
 
-				weights.Property(w => w.Elevation)
+				weights.Property(w => w.ElevationWeight)
+					.IsRequired()
+					.HasConversion(vo => vo.Value, raw => ScoringWeight.FromPersistence(raw))
 					.HasColumnName("WeightElevation")
-					.IsRequired();
+					.HasColumnType("FLOAT");
 
-				weights.Property(w => w.Scenery)
+				weights.Property(w => w.SceneryWeight)
+					.IsRequired()
+					.HasConversion(vo => vo.Value, raw => ScoringWeight.FromPersistence(raw))
 					.HasColumnName("WeightScenery")
-					.IsRequired();
+					.HasColumnType("FLOAT");
 			});
 		});
 		#endregion
@@ -143,17 +157,16 @@ internal sealed class RoutePlanConfiguration : IEntityTypeConfiguration<RoutePla
 		builder.OwnsOne(x => x.LoopSpec, loop =>
 		{
 			loop.Property(l => l.IsLoop)
-				.HasColumnName("IsLoop")
-				.IsRequired();
+				.IsRequired()
+				.HasColumnName("IsLoop");
 
 			loop.Property(l => l.ReturnStrategy)
-				.HasColumnName("LoopReturnStrategy")
-				.HasConversion<int>();
+				.HasConversion<int>()
+				.HasColumnName("LoopReturnStrategy");
 
 			loop.OwnsOne(p => p.TargetDistance, dist =>
 			{
-				dist.Property(d => d.Meters)
-					.HasColumnName("LoopTargetDistanceMeters");
+				dist.Property(d => d.Meters).HasColumnName("LoopTargetDistanceMeters");
 			});
 		});
 		#endregion

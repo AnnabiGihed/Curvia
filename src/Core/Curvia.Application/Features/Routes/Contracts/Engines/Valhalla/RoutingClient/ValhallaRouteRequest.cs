@@ -9,15 +9,15 @@ namespace Curvia.Application.Features.Routes.Contracts.Engines.Valhalla.RoutingC
 ///              Serialized as snake_case by <see cref="ValhallaRoutingClient"/>
 ///              (locations, costing, costing_options, directions_options, exclude_polygons).
 /// </summary>
-/// <param name="Locations">Ordered list of route locations (start, optional waypoints, end).</param>
+/// <param name="Locations">Ordered list of route locations (start, optional through-waypoints, end).</param>
 /// <param name="Costing">Valhalla costing model. Always "motorcycle" for this platform.</param>
-/// <param name="CostingOptions">Motorcycle-specific costing parameters.</param>
+/// <param name="CostingOptions">Motorcycle-specific costing parameters (use_highways, use_tolls, etc.).</param>
 /// <param name="DirectionsOptions">Output formatting options (units, language).</param>
 /// <param name="ExcludePolygons">
 /// Optional list of polygon rings to exclude from routing.
-/// Each element is a closed ring represented as a list of [longitude, latitude] pairs.
-/// Valhalla format: exclude_polygons = [ [[lon,lat],[lon,lat],...], ... ]
-/// Used for DifferentRoute loop return legs to force a different path from the outbound.
+/// Each <see cref="ValhallaExcludePolygon"/> carries a closed ring of [longitude, latitude] pairs.
+/// Valhalla wire format: <c>exclude_polygons = [ [[lon,lat],...], ... ]</c>
+/// Used for DifferentRoute loop return legs and round-trip return legs to force a different path.
 /// Null = no exclusions.
 /// </param>
-public sealed record ValhallaRouteRequest(IReadOnlyList<ValhallaLocation> Locations, string Costing, ValhallaCostingOptions CostingOptions,	ValhallaDirectionsOptions DirectionsOptions, IReadOnlyList<double[][]>? ExcludePolygons = null);
+public sealed record ValhallaRouteRequest(IReadOnlyList<ValhallaLocation> Locations, string Costing, ValhallaCostingOptions CostingOptions, ValhallaDirectionsOptions DirectionsOptions, IReadOnlyList<ValhallaExcludePolygon>? ExcludePolygons = null);
