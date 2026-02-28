@@ -11,9 +11,9 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Pivot.Framework.Infrastructure.Messaging.EntityFrameworkCore" Version="1.0.1" />
-    <PackageReference Include="Pivot.Framework.Infrastructure.Persistence.EntityFrameworkCore" Version="1.0.1" />
-    <PackageReference Include="Pivot.Framework.Tools.DependencyInjection" Version="1.0.1" />
+    <PackageReference Include="Pivot.Framework.Infrastructure.Messaging.EntityFrameworkCore" Version="1.0.2" />
+    <PackageReference Include="Pivot.Framework.Infrastructure.Persistence.EntityFrameworkCore" Version="1.0.2" />
+    <PackageReference Include="Pivot.Framework.Tools.DependencyInjection" Version="1.0.2" />
   </ItemGroup>
 
   <ItemGroup>

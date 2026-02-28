@@ -13,9 +13,9 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.4" />
-    <PackageReference Include="Pivot.Framework.Authentication.AspNetCore" Version="1.0.1" />
-    <PackageReference Include="Pivot.Framework.Authentication.Caching" Version="1.0.1" />
-    <PackageReference Include="Pivot.Framework.Containers.API" Version="1.0.1" />
+    <PackageReference Include="Pivot.Framework.Authentication.AspNetCore" Version="1.0.2" />
+    <PackageReference Include="Pivot.Framework.Authentication.Caching" Version="1.0.2" />
+    <PackageReference Include="Pivot.Framework.Containers.API" Version="1.0.2" />
   </ItemGroup>
 
   <ItemGroup>
