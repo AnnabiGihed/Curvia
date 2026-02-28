@@ -13,6 +13,11 @@ namespace Curvia.Persistence.EntityFrameworkCore.Features.Awareness.Repositories
 /// Purpose     : EF Core implementation of <see cref="IHazardRepository"/>.
 ///              Hazard is a trivial aggregate root — single-entity aggregate, no child entities,
 ///              no soft-delete. Lifecycle is managed by the Worker's DeleteBySourceAsync + reload pattern.
+///
+///              Note: ExecuteDeleteAsync cannot be used with OwnsOne-mapped properties (Position, Audit)
+///              because EF Core internally includes owned navigations in the translated query, which
+///              SQL Server cannot execute as a bulk DELETE. Bulk deletes therefore use raw SQL targeting
+///              the underlying scalar columns directly.
 /// </summary>
 internal sealed class HazardRepository : BaseAsyncCommandRepository<Hazard, HazardId>, IHazardRepository
 {
@@ -47,9 +52,14 @@ internal sealed class HazardRepository : BaseAsyncCommandRepository<Hazard, Haza
 	/// <inheritdoc/>
 	public async Task DeleteBySourceAsync(string source, string countryCode, CancellationToken ct = default)
 	{
-		await DbContext.Set<Hazard>()
-			.Where(h => h.Source.Value == source && h.CountryCode.Value == countryCode)
-			.ExecuteDeleteAsync(ct);
+		// ExecuteDeleteAsync cannot be used here — EF Core includes OwnsOne navigations (Position, Audit)
+		// in the translated query which SQL Server cannot execute as a bulk DELETE statement.
+		// Raw SQL targets the scalar columns directly, bypassing owned entity navigation.
+		// ct is passed as a named argument to avoid it being captured into the params object[] array.
+		await DbContext.Database.ExecuteSqlRawAsync(
+			"DELETE FROM [Hazards] WHERE [Source] = {0} AND [CountryCode] = {1}",
+			parameters: new object[] { source, countryCode },
+			cancellationToken: ct);
 	}
 	#endregion
 }

@@ -17,6 +17,11 @@ namespace Curvia.Persistence.EntityFrameworkCore.Features.Awareness.Repositories
 ///              columns — sufficient for SQL Server at pan-European scale without PostGIS.
 ///              No global IsDeleted query filter: lifecycle is managed by the Worker's
 ///              DeleteBySourceAsync + reload pattern, not soft delete.
+///
+///              Note: ExecuteDeleteAsync cannot be used with OwnsOne-mapped properties (Position, Audit)
+///              because EF Core includes owned navigations in the translated query, which SQL Server
+///              cannot execute as a bulk DELETE. Bulk deletes therefore use raw SQL targeting
+///              the underlying scalar columns directly.
 /// </summary>
 internal sealed class SpeedCameraRepository : BaseAsyncCommandRepository<SpeedCamera, SpeedCameraId>, ISpeedCameraRepository
 {
@@ -51,9 +56,14 @@ internal sealed class SpeedCameraRepository : BaseAsyncCommandRepository<SpeedCa
 	/// <inheritdoc/>
 	public async Task DeleteBySourceAsync(string source, string countryCode, CancellationToken ct = default)
 	{
-		await DbContext.Set<SpeedCamera>()
-			.Where(c => c.Source.Value == source && c.CountryCode.Value == countryCode)
-			.ExecuteDeleteAsync(ct);
+		// ExecuteDeleteAsync cannot be used here — EF Core includes OwnsOne navigations (Position, Audit)
+		// in the translated query which SQL Server cannot execute as a bulk DELETE statement.
+		// Raw SQL targets the scalar columns directly, bypassing owned entity navigation.
+		// ct is passed as a named argument to avoid it being captured into the params object[] array.
+		await DbContext.Database.ExecuteSqlRawAsync(
+			"DELETE FROM [SpeedCameras] WHERE [Source] = {0} AND [CountryCode] = {1}",
+			parameters: new object[] { source, countryCode },
+			cancellationToken: ct);
 	}
 	#endregion
 }
