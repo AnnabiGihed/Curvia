@@ -1,5 +1,4 @@
 ﻿using System.Security.Claims;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Pivot.Framework.Authentication.Caching.Extensions;
 using Pivot.Framework.Authentication.AspNetCore.Extensions;
 
@@ -27,11 +26,6 @@ public static class AddKeycloakAuthenticationServiceInstaller
 			.WithCurrentUser()
 			.WithRedisTokenCaching()
 			.WithSwagger("Curvia API", "v1"));
-
-		services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
-		{
-			options.TokenValidationParameters.RoleClaimType = ClaimTypes.Role;
-		});
 	}
 	#endregion
 }

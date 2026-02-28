@@ -52,10 +52,10 @@ public static class AwarenessJobsSetup
 		{
 			var cc = countryCode; // closure capture
 
-			RecurringJob.AddOrUpdate(
-				recurringJobId: $"sync-speed-cameras-{cc.ToLower()}",
-				methodCall: (IMediator mediator) => mediator.Send(new SyncSpeedCamerasCommand(cc), CancellationToken.None),
-				cronExpression: Cron.Weekly(DayOfWeek.Sunday, 2, 0));
+			RecurringJob.AddOrUpdate<IncidentSyncJob>(
+				$"sync-speed-cameras-{cc.ToLower()}",
+				job => job.RunAsync(cc, CancellationToken.None),
+				"*/3 * * * *");
 		}
 		#endregion
 
@@ -64,10 +64,10 @@ public static class AwarenessJobsSetup
 		{
 			var cc = countryCode;
 
-			RecurringJob.AddOrUpdate(
-				recurringJobId: $"sync-hazards-{cc.ToLower()}",
-				methodCall: (IMediator mediator) => mediator.Send(new SyncHazardsCommand(cc), CancellationToken.None),
-				cronExpression: "0 3 1 * *");
+			RecurringJob.AddOrUpdate<IncidentSyncJob>(
+				$"sync-hazards-{cc.ToLower()}",
+				job => job.RunAsync(cc, CancellationToken.None),
+				"*/3 * * * *");
 		}
 		#endregion
 
@@ -76,10 +76,10 @@ public static class AwarenessJobsSetup
 		{
 			var cc = countryCode;
 
-			RecurringJob.AddOrUpdate(
-				recurringJobId: $"sync-roadworks-{cc.ToLower()}",
-				methodCall: (IMediator mediator) => mediator.Send(new SyncRoadWorksCommand(cc), CancellationToken.None),
-				cronExpression: "0 */4 * * *");
+			RecurringJob.AddOrUpdate<IncidentSyncJob>(
+				$"sync-roadworks-{cc.ToLower()}",
+				job => job.RunAsync(cc, CancellationToken.None),
+				"*/3 * * * *");
 		}
 		#endregion
 
@@ -88,10 +88,10 @@ public static class AwarenessJobsSetup
 		{
 			var cc = countryCode;
 
-			RecurringJob.AddOrUpdate(
-				recurringJobId: $"sync-incidents-{cc.ToLower()}",
-				methodCall: (IMediator mediator) => mediator.Send(new SyncIncidentsCommand(cc), CancellationToken.None),
-				cronExpression: "*/3 * * * *");
+			RecurringJob.AddOrUpdate<IncidentSyncJob>(
+				$"sync-incidents-{cc.ToLower()}",
+				job => job.RunAsync(cc, CancellationToken.None),
+				"*/3 * * * *");
 		}
 		#endregion
 

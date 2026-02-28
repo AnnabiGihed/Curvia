@@ -9,6 +9,7 @@ using Curvia.Infrastructure.Features.Awareness.Providers.Incidents;
 using Curvia.Infrastructure.Features.Awareness.Providers.RoadWorks;
 using Curvia.Infrastructure.Features.Awareness.Providers.OpenSpeedCam;
 using Curvia.Infrastructure.Features.Awareness.Providers.Incidents.Configurations;
+using Pivot.Framework.Authentication.Hangfire.Extensions;
 
 namespace Curvia.Infrastructure.ServiceInstallers;
 
@@ -41,7 +42,8 @@ public sealed class AwarenessInfrastructureServiceInstaller : IServiceInstaller
 		// AddHangfireWithDashboard registers AddHangfire (SQL Server storage) + AddHangfireServer.
 		// The dashboard middleware is mounted separately in HostingExtensions.ConfigurePipeline
 		// via app.UseHangfireDashboardWithOptions().
-		services.AddHangfireWithDashboard(configuration);
+		services.AddHangfireWithDashboard(configuration); 
+		services.AddHangfireKeycloakBrowserAuth(configuration);
 		#endregion
 
 		#region HTTP clients — named per provider for independent timeout tuning
@@ -100,6 +102,11 @@ public sealed class AwarenessInfrastructureServiceInstaller : IServiceInstaller
 		#region Cleanup job — resolved by Hangfire per-job DI scope
 		services.AddScoped<AwarenessCleanupJob>();
 		#endregion
+
+		services.AddScoped<IncidentSyncJob>();
+		services.AddScoped<SpeedCameraSyncJob>();
+		services.AddScoped<HazardSyncJob>();
+		services.AddScoped<RoadWorkSyncJob>();
 	}
 	#endregion
 }

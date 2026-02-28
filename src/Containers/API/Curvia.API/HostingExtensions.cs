@@ -1,14 +1,15 @@
-﻿using Serilog;
-using System.Reflection;
+﻿using Curvia.API.Middleware.Identity;
 using Curvia.Infrastructure.Jobs;
+using Curvia.Persistence.EntityFrameworkCore.Features.MotorcycleCatalog.Seed;
+using Curvia.Persistence.EntityFrameworkCore.PersistenceContext;
 using Microsoft.EntityFrameworkCore;
-using Curvia.API.Middleware.Identity;
-using Pivot.Framework.Containers.API.Middleware;
 using Pivot.Framework.Authentication.AspNetCore.Extensions;
+using Pivot.Framework.Authentication.Hangfire.Extensions;
+using Pivot.Framework.Containers.API.Middleware;
 using Pivot.Framework.Infrastructure.Scheduling.Extensions;
 using Pivot.Framework.Tools.DependencyInjection.Abstractions;
-using Curvia.Persistence.EntityFrameworkCore.PersistenceContext;
-using Curvia.Persistence.EntityFrameworkCore.Features.MotorcycleCatalog.Seed;
+using Serilog;
+using System.Reflection;
 
 namespace Curvia.API;
 
@@ -70,10 +71,8 @@ internal static class HostingExtensions
 
 		#region Hangfire Dashboard
 		// Mounted at /hangfire — restrict to dev/internal networks in production via DashboardOptions.
-		app.UseHangfireDashboardWithOptions(opts =>
+		app.UseHangfireDashboardWithKeycloakAuth(opts =>
 		{
-			// Allow all in development; tighten authorization filters in production by
-			// replacing the empty array with a real IDashboardAuthorizationFilter.
 			opts.DashboardTitle = "Curvia — Background Jobs";
 		});
 		#endregion
