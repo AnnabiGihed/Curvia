@@ -114,12 +114,12 @@ public sealed class Incident : AggregateRoot<IncidentId>
 		if (positionResult.IsFailure)
 			return Result.Failure<Incident>(positionResult.Error);
 
-		var descriptionResult = AwarenessDescription.CreateOptional(description);
-		if (descriptionResult.IsFailure)
-			return Result.Failure<Incident>(descriptionResult.Error);
+		var (descriptionVo, descriptionError) = AwarenessDescription.CreateOptional(description);
+		if (descriptionError is not null)
+			return Result.Failure<Incident>(descriptionError);
 
 		var now = DateTime.UtcNow;
-		var incident = new Incident(IncidentId.New(), externalIdResult.Value, sourceResult.Value, countryCodeResult.Value, positionResult.Value, incidentType, severity, descriptionResult.Value, validFromUtc, validUntilUtc, now);
+		var incident = new Incident(IncidentId.New(), externalIdResult.Value, sourceResult.Value, countryCodeResult.Value, positionResult.Value, incidentType, severity, descriptionVo, validFromUtc, validUntilUtc, now);
 		incident.InitializeAudit(now, source);
 		return Result.Success(incident);
 	}
@@ -144,14 +144,14 @@ public sealed class Incident : AggregateRoot<IncidentId>
 		if (positionResult.IsFailure)
 			return Result.Failure(positionResult.Error);
 
-		var descriptionResult = AwarenessDescription.CreateOptional(description);
-		if (descriptionResult.IsFailure)
-			return Result.Failure(descriptionResult.Error);
+		var (descriptionVo, descriptionError) = AwarenessDescription.CreateOptional(description);
+		if (descriptionError is not null)
+			return Result.Failure<Hazard>(descriptionError);
 
 		Position = positionResult.Value;
 		IncidentType = incidentType;
 		Severity = severity;
-		Description = descriptionResult.Value;
+		Description = descriptionVo;
 		ValidFromUtc = validFromUtc;
 		ValidUntilUtc = validUntilUtc;
 		LastSyncedUtc = DateTime.UtcNow;

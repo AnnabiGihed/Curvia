@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using Pivot.Framework.Domain.Shared;
+using Pivot.Framework.Domain.Repositories;
 using Curvia.Domain.Features.Awareness.Aggregates;
 using Curvia.Domain.Features.Awareness.Repositories;
 using Curvia.Application.Features.Awareness.Contracts.Records;
@@ -17,6 +18,10 @@ namespace Curvia.Application.Features.Awareness.Commands.SyncRoadWorks;
 ///              them by natural key (ExternalId + Source + CountryCode), and purges
 ///              expired records after each run.
 ///
+///              A single SaveChangesAsync is called at the end of the pipeline so that
+///              the entire sync for a country (inserts + updates + expiry deletes) is
+///              committed atomically in one round-trip.
+///
 ///              Returns Result.Failure when one or more providers fail so that Hangfire marks
 ///              the per-country job as failed and retries it automatically.
 /// </summary>
@@ -29,6 +34,9 @@ internal sealed class SyncRoadWorksCommandHandler : ICommandHandler<SyncRoadWork
 	/// <summary>Persistence contract for <see cref="RoadWork"/> aggregates.</summary>
 	private readonly IRoadWorkRepository _repository;
 
+	/// <summary>Commits all pending changes atomically: auditing + outbox + SaveChanges.</summary>
+	private readonly IUnitOfWork _unitOfWork;
+
 	/// <summary>Logger for this handler.</summary>
 	private readonly ILogger<SyncRoadWorksCommandHandler> _logger;
 	#endregion
@@ -39,11 +47,13 @@ internal sealed class SyncRoadWorksCommandHandler : ICommandHandler<SyncRoadWork
 	/// </summary>
 	/// <param name="providers">All registered road-work data providers.</param>
 	/// <param name="repository">Persistence contract for road-work aggregates.</param>
+	/// <param name="unitOfWork">Unit of work used to commit the sync atomically.</param>
 	/// <param name="logger">Logger instance.</param>
-	public SyncRoadWorksCommandHandler(IEnumerable<IRoadWorkDataProvider> providers, IRoadWorkRepository repository, ILogger<SyncRoadWorksCommandHandler> logger)
+	public SyncRoadWorksCommandHandler(IEnumerable<IRoadWorkDataProvider> providers, IRoadWorkRepository repository, IUnitOfWork unitOfWork, ILogger<SyncRoadWorksCommandHandler> logger)
 	{
 		_providers = providers ?? throw new ArgumentNullException(nameof(providers));
 		_repository = repository ?? throw new ArgumentNullException(nameof(repository));
+		_unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}
 	#endregion
@@ -112,6 +122,11 @@ internal sealed class SyncRoadWorksCommandHandler : ICommandHandler<SyncRoadWork
 		// Purge expired records after each sync pass.
 		await _repository.DeleteExpiredAsync(ct);
 
+		// Single commit for the entire country sync — all inserts, updates and expiry deletes in one atomic round-trip.
+		var saveResult = await _unitOfWork.SaveChangesAsync(ct);
+		if (saveResult.IsFailure)
+			return saveResult;
+
 		_logger.LogInformation("Road-work sync for {Country} complete: {Inserted} inserted, {Updated} updated, {Skipped} skipped.", country, inserted, updated, skipped);
 
 		// Propagate provider failures so Hangfire marks the per-country job as failed.
@@ -131,12 +146,8 @@ internal sealed class SyncRoadWorksCommandHandler : ICommandHandler<SyncRoadWork
 	/// <param name="providers">Providers that support the target country.</param>
 	/// <param name="country">ISO 3166-1 alpha-2 country code.</param>
 	/// <param name="ct">Cancellation token.</param>
-	/// <returns>
-	/// A tuple of: the combined list of raw road-work records from providers that succeeded,
-	/// a flag indicating whether any provider failed, and the list of failed provider names.
-	/// </returns>
-	private async Task<(List<RoadWorkRecord> Records, bool HadFailure, List<string> FailedProviders)>
-		FetchFromApplicableProvidersAsync(List<IRoadWorkDataProvider> providers, string country, CancellationToken ct)
+	/// <returns>A tuple of: the combined list of raw road-work records from providers that succeeded, a flag indicating whether any provider failed, and the list of failed provider names.</returns>
+	private async Task<(List<RoadWorkRecord> Records, bool HadFailure, List<string> FailedProviders)> FetchFromApplicableProvidersAsync(List<IRoadWorkDataProvider> providers, string country, CancellationToken ct)
 	{
 		var failedProviders = new List<string>();
 

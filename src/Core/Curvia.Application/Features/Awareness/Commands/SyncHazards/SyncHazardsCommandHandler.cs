@@ -1,6 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using Pivot.Framework.Domain.Shared;
-using Curvia.Domain.Features.Awareness.Enums;
+using Pivot.Framework.Domain.Repositories;
 using Curvia.Domain.Features.Awareness.Aggregates;
 using Curvia.Domain.Features.Awareness.Repositories;
 using Curvia.Application.Features.Awareness.Contracts.Records;
@@ -19,6 +19,10 @@ namespace Curvia.Application.Features.Awareness.Commands.SyncHazards;
 ///              other, deletes existing data per source for the country, then upserts the
 ///              deduplicated dataset.
 ///              Runs monthly per country — permanent hazard locations rarely change.
+///
+///              A single SaveChangesAsync is called at the end of the pipeline so that
+///              the entire sync for a country (deletes + inserts + updates) is committed
+///              atomically in one round-trip.
 ///
 ///              Returns Result.Failure when one or more providers fail so that Hangfire marks
 ///              the per-country job as failed and retries it automatically.
@@ -40,6 +44,9 @@ internal sealed class SyncHazardsCommandHandler : ICommandHandler<SyncHazardsCom
 	/// <summary>Persistence contract for <see cref="Hazard"/> aggregates.</summary>
 	private readonly IHazardRepository _repository;
 
+	/// <summary>Commits all pending changes atomically: auditing + outbox + SaveChanges.</summary>
+	private readonly IUnitOfWork _unitOfWork;
+
 	/// <summary>Logger for this handler.</summary>
 	private readonly ILogger<SyncHazardsCommandHandler> _logger;
 	#endregion
@@ -50,11 +57,13 @@ internal sealed class SyncHazardsCommandHandler : ICommandHandler<SyncHazardsCom
 	/// </summary>
 	/// <param name="providers">All registered hazard data providers.</param>
 	/// <param name="repository">Persistence contract for hazard aggregates.</param>
+	/// <param name="unitOfWork">Unit of work used to commit the sync atomically.</param>
 	/// <param name="logger">Logger instance.</param>
-	public SyncHazardsCommandHandler(IEnumerable<IHazardDataProvider> providers, IHazardRepository repository, ILogger<SyncHazardsCommandHandler> logger)
+	public SyncHazardsCommandHandler(IEnumerable<IHazardDataProvider> providers, IHazardRepository repository, IUnitOfWork unitOfWork, ILogger<SyncHazardsCommandHandler> logger)
 	{
 		_providers = providers ?? throw new ArgumentNullException(nameof(providers));
 		_repository = repository ?? throw new ArgumentNullException(nameof(repository));
+		_unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}
 	#endregion
@@ -122,6 +131,11 @@ internal sealed class SyncHazardsCommandHandler : ICommandHandler<SyncHazardsCom
 			}
 		}
 
+		// Single commit for the entire country sync — all deletes, inserts and updates in one atomic round-trip.
+		var saveResult = await _unitOfWork.SaveChangesAsync(ct);
+		if (saveResult.IsFailure)
+			return saveResult;
+
 		_logger.LogInformation("Hazard sync for {Country} complete: {Inserted} inserted, {Updated} updated, {Skipped} skipped.", country, inserted, updated, skipped);
 
 		// Propagate provider failures so Hangfire marks the per-country job as failed.
@@ -139,12 +153,8 @@ internal sealed class SyncHazardsCommandHandler : ICommandHandler<SyncHazardsCom
 	/// </summary>
 	/// <param name="country">Uppercase ISO country code.</param>
 	/// <param name="ct">Cancellation token.</param>
-	/// <returns>
-	/// A tuple of: the flat list of all records from successful providers,
-	/// a flag indicating whether any provider failed, and the list of failed provider names.
-	/// </returns>
-	private async Task<(List<HazardRecord> Records, bool HadFailure, List<string> FailedProviders)>
-		FetchFromAllProvidersAsync(string country, CancellationToken ct)
+	/// <returns>A tuple of: the flat list of all records from successful providers, a flag indicating whether any provider failed, and the list of failed provider names.</returns>
+	private async Task<(List<HazardRecord> Records, bool HadFailure, List<string> FailedProviders)> FetchFromAllProvidersAsync(string country, CancellationToken ct)
 	{
 		var failedProviders = new List<string>();
 
@@ -172,38 +182,34 @@ internal sealed class SyncHazardsCommandHandler : ICommandHandler<SyncHazardsCom
 	}
 
 	/// <summary>
-	/// Removes duplicate hazards (same physical location, different sources) using Haversine distance.
-	/// When two hazards from different sources are within <see cref="DeduplicationDistanceMeters"/>,
-	/// the one that appears first in the list is kept.
+	/// Removes duplicate hazards using Haversine distance.
+	/// When two hazards from different sources are within <see cref="DeduplicationDistanceMeters"/>, the first in the list is kept.
 	/// </summary>
-	/// <param name="records">Flat list of all records from all providers.</param>
-	/// <returns>Deduplicated list.</returns>
+	/// <param name="records">Flat list of all hazard records from all providers.</param>
+	/// <returns>Deduplicated list with one record per physical hazard location.</returns>
 	private static List<HazardRecord> DeduplicateHazards(List<HazardRecord> records)
 	{
-		var kept = new List<HazardRecord>();
+		var deduplicated = new List<HazardRecord>();
 
-		foreach (var record in records)
+		foreach (var candidate in records)
 		{
-			var isDuplicate = kept.Any(k =>
-				k.Source != record.Source &&
-				Haversine(k.Latitude, k.Longitude, record.Latitude, record.Longitude) <= DeduplicationDistanceMeters);
-
+			var isDuplicate = deduplicated.Any(existing => HaversineMeters(candidate.Latitude, candidate.Longitude, existing.Latitude, existing.Longitude) <= DeduplicationDistanceMeters);
 			if (!isDuplicate)
-				kept.Add(record);
+				deduplicated.Add(candidate);
 		}
 
-		return kept;
+		return deduplicated;
 	}
 
 	/// <summary>
-	/// Computes the Haversine distance in metres between two WGS84 coordinates.
+	/// Calculates the great-circle distance in metres between two WGS84 coordinates using the Haversine formula.
 	/// </summary>
-	/// <param name="lat1">Latitude of the first point.</param>
-	/// <param name="lon1">Longitude of the first point.</param>
-	/// <param name="lat2">Latitude of the second point.</param>
-	/// <param name="lon2">Longitude of the second point.</param>
+	/// <param name="lat1">Latitude of the first point in decimal degrees.</param>
+	/// <param name="lon1">Longitude of the first point in decimal degrees.</param>
+	/// <param name="lat2">Latitude of the second point in decimal degrees.</param>
+	/// <param name="lon2">Longitude of the second point in decimal degrees.</param>
 	/// <returns>Distance in metres.</returns>
-	private static double Haversine(double lat1, double lon1, double lat2, double lon2)
+	private static double HaversineMeters(double lat1, double lon1, double lat2, double lon2)
 	{
 		var dLat = (lat2 - lat1) * Math.PI / 180.0;
 		var dLon = (lon2 - lon1) * Math.PI / 180.0;

@@ -47,17 +47,17 @@ public static class AwarenessJobsSetup
 	/// <param name="app">The application builder whose service provider Hangfire will use.</param>
 	public static void RegisterAwarenessJobs(this IApplicationBuilder app)
 	{
-		#region Speed cameras — weekly per country (Sunday 02:00 UTC)
-		foreach (var countryCode in CountryBoundingBoxes.AllCountryCodes)
-		{
-			var cc = countryCode; // closure capture
+		//#region Speed cameras — weekly per country (Sunday 02:00 UTC)
+		//foreach (var countryCode in CountryBoundingBoxes.AllCountryCodes)
+		//{
+		//	var cc = countryCode; // closure capture
 
-			RecurringJob.AddOrUpdate<SpeedCameraSyncJob>(
-				$"sync-speed-cameras-{cc.ToLower()}",
-				job => job.RunAsync(cc, CancellationToken.None),
-				"0 2 * * 0");
-		}
-		#endregion
+		//	RecurringJob.AddOrUpdate<SpeedCameraSyncJob>(
+		//		$"sync-speed-cameras-{cc.ToLower()}",
+		//		job => job.RunAsync(cc, CancellationToken.None),
+		//		"0 2 * * 0");
+		//}
+		//#endregion
 
 		//#region Hazards — monthly per country (1st of month, 03:00 UTC)
 		//foreach (var countryCode in CountryBoundingBoxes.AllCountryCodes)
@@ -67,21 +67,21 @@ public static class AwarenessJobsSetup
 		//	RecurringJob.AddOrUpdate<HazardSyncJob>(
 		//		$"sync-hazards-{cc.ToLower()}",
 		//		job => job.RunAsync(cc, CancellationToken.None),
-		//		"*/3 * * * *");
+		//		"0 3 1 * *");
 		//}
 		//#endregion
 
-		//#region Road works — every 4 hours per country
-		//foreach (var countryCode in CountryBoundingBoxes.AllCountryCodes)
-		//{
-		//	var cc = countryCode;
+		#region Road works — every 4 hours per country
+		foreach (var countryCode in CountryBoundingBoxes.AllCountryCodes)
+		{
+			var cc = countryCode;
 
-		//	RecurringJob.AddOrUpdate<RoadWorkSyncJob>(
-		//		$"sync-roadworks-{cc.ToLower()}",
-		//		job => job.RunAsync(cc, CancellationToken.None),
-		//		"*/3 * * * *");
-		//}
-		//#endregion
+			RecurringJob.AddOrUpdate<RoadWorkSyncJob>(
+				$"sync-roadworks-{cc.ToLower()}",
+				job => job.RunAsync(cc, CancellationToken.None),
+				"*/3 * * * *");
+		}
+		#endregion
 
 		//#region Incidents — every 3 minutes per country
 		//foreach (var countryCode in CountryBoundingBoxes.AllCountryCodes)

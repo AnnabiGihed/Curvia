@@ -109,12 +109,12 @@ public sealed class RoadWork : AggregateRoot<RoadWorkId>
 		if (titleResult.IsFailure)
 			return Result.Failure<RoadWork>(titleResult.Error);
 
-		var descriptionResult = AwarenessDescription.CreateOptional(description);
-		if (descriptionResult.IsFailure)
-			return Result.Failure<RoadWork>(descriptionResult.Error);
+		var (descriptionVo, descriptionError) = AwarenessDescription.CreateOptional(description);
+		if (descriptionError is not null)
+			return Result.Failure<RoadWork>(descriptionError);
 
 		var now = DateTime.UtcNow;
-		var roadWork = new RoadWork(RoadWorkId.New(), externalIdResult.Value, sourceResult.Value, countryCodeResult.Value, positionResult.Value, titleResult.Value, descriptionResult.Value, validFromUtc, validUntilUtc, now);
+		var roadWork = new RoadWork(RoadWorkId.New(), externalIdResult.Value, sourceResult.Value, countryCodeResult.Value, positionResult.Value, titleResult.Value, descriptionVo, validFromUtc, validUntilUtc, now);
 		roadWork.InitializeAudit(now, source);
 		return Result.Success(roadWork);
 	}
@@ -142,13 +142,13 @@ public sealed class RoadWork : AggregateRoot<RoadWorkId>
 		if (titleResult.IsFailure)
 			return Result.Failure(titleResult.Error);
 
-		var descriptionResult = AwarenessDescription.CreateOptional(description);
-		if (descriptionResult.IsFailure)
-			return Result.Failure(descriptionResult.Error);
+		var (descriptionVo, descriptionError) = AwarenessDescription.CreateOptional(description);
+		if (descriptionError is not null)
+			return Result.Failure<Hazard>(descriptionError);
 
 		Title = titleResult.Value;
 		Position = positionResult.Value;
-		Description = descriptionResult.Value;
+		Description = descriptionVo;
 		ValidFromUtc = validFromUtc;
 		ValidUntilUtc = validUntilUtc;
 		LastSyncedUtc = DateTime.UtcNow;

@@ -27,20 +27,28 @@ namespace Curvia.Infrastructure.Features.Awareness.Providers.RoadWorks;
 /// </summary>
 public sealed class OsmRoadWorkProvider : IRoadWorkDataProvider
 {
-	#region Fields
-	private readonly HttpClient _httpClient;
-	private readonly ILogger<OsmRoadWorkProvider> _logger;
-
+	#region Properties
+	/// <summary>Short provider identifier used as the Source on persisted aggregates.</summary>
 	public string ProviderName => "osm";
 
-	/// <summary>
-	/// Empty = supports all countries (serves as universal fallback).
-	/// Country-specific providers take priority via the resolver.
-	/// </summary>
+	/// <summary>Empty = supports all countries (serves as universal fallback).</summary>
 	public IReadOnlyList<string> SupportedCountryCodes => Array.Empty<string>();
 	#endregion
 
+	#region Fields
+	/// <summary>HttpClient configured for the Overpass API.</summary>
+	private readonly HttpClient _httpClient;
+
+	/// <summary>Logger for fetch lifecycle and error events.</summary>
+	private readonly ILogger<OsmRoadWorkProvider> _logger;
+	#endregion
+
 	#region Constructor
+	/// <summary>
+	/// Initialises a new instance of <see cref="OsmRoadWorkProvider"/>.
+	/// </summary>
+	/// <param name="httpClient">HttpClient configured for the Overpass API.</param>
+	/// <param name="logger">Logger instance.</param>
 	public OsmRoadWorkProvider(HttpClient httpClient, ILogger<OsmRoadWorkProvider> logger)
 	{
 		_httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
@@ -49,8 +57,15 @@ public sealed class OsmRoadWorkProvider : IRoadWorkDataProvider
 	#endregion
 
 	#region IRoadWorkDataProvider
-	public async Task<IReadOnlyList<RoadWorkRecord>> FetchAsync(
-		string countryCode, CancellationToken ct = default)
+	/// <summary>
+	/// Fetches road works from the Overpass API for the given country.
+	/// Logs the error and re-throws on any network or HTTP failure so that the sync handler
+	/// can mark this provider as failed rather than silently returning zero records.
+	/// </summary>
+	/// <param name="countryCode">ISO 3166-1 alpha-2 country code.</param>
+	/// <param name="ct">Cancellation token.</param>
+	/// <returns>Parsed road-work records from OSM.</returns>
+	public async Task<IReadOnlyList<RoadWorkRecord>> FetchAsync(string countryCode, CancellationToken ct = default)
 	{
 		if (!CountryBoundingBoxes.TryGet(countryCode, out var bbox))
 		{
@@ -60,12 +75,15 @@ public sealed class OsmRoadWorkProvider : IRoadWorkDataProvider
 
 		var bb = bbox.ToOverpassBbox();
 
+		// "out center body" is required so that ways receive a "center" property
+		// with their centroid lat/lon — without it ways silently have no coordinates
+		// and are dropped by the parser.
 		var query = $@"[out:json][timeout:90];
 (
   way[""highway""=""construction""]({bb});
   node[""construction""]({bb});
 )->.r;
-.r out body;";
+.r out center body;";
 
 		var url = $"https://overpass-api.de/api/interpreter?data={Uri.EscapeDataString(query)}";
 
@@ -80,7 +98,7 @@ public sealed class OsmRoadWorkProvider : IRoadWorkDataProvider
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "Overpass API request failed for road works ({CountryCode}).", countryCode);
-			return Array.Empty<RoadWorkRecord>();
+			throw;
 		}
 
 		var json = await response.Content.ReadAsStringAsync(ct);
@@ -89,6 +107,11 @@ public sealed class OsmRoadWorkProvider : IRoadWorkDataProvider
 	#endregion
 
 	#region Parsing
+	/// <summary>
+	/// Parses the Overpass JSON response into road-work records.
+	/// </summary>
+	/// <param name="json">Raw JSON string from the Overpass response body.</param>
+	/// <returns>Parsed road-work records. Empty list when no valid elements are found.</returns>
 	private static IReadOnlyList<RoadWorkRecord> ParseResponse(string json)
 	{
 		using var doc = JsonDocument.Parse(json);
@@ -98,22 +121,23 @@ public sealed class OsmRoadWorkProvider : IRoadWorkDataProvider
 		var result = new List<RoadWorkRecord>();
 		foreach (var element in elements.EnumerateArray())
 		{
-			if (!element.TryGetProperty("id", out var idEl)) continue;
+			if (!element.TryGetProperty("id", out var idEl))
+				continue;
 			var id = idEl.GetInt64().ToString();
 			var type = element.TryGetProperty("type", out var typeEl) ? typeEl.GetString() : "node";
 
 			double lat, lon;
 			if (type == "way")
 			{
-				// Ways don't have direct lat/lon — use center if provided by Overpass
-				if (!element.TryGetProperty("center", out var center)) continue;
+				if (!element.TryGetProperty("center", out var center))
+					continue;
 				lat = center.GetProperty("lat").GetDouble();
 				lon = center.GetProperty("lon").GetDouble();
 			}
 			else
 			{
-				if (!element.TryGetProperty("lat", out var latEl) ||
-					!element.TryGetProperty("lon", out var lonEl)) continue;
+				if (!element.TryGetProperty("lat", out var latEl) || !element.TryGetProperty("lon", out var lonEl))
+					continue;
 				lat = latEl.GetDouble();
 				lon = lonEl.GetDouble();
 			}
@@ -121,8 +145,6 @@ public sealed class OsmRoadWorkProvider : IRoadWorkDataProvider
 			element.TryGetProperty("tags", out var tags);
 
 			var title = ExtractTitle(tags);
-
-			// Parse date tags — construction:date, date:open, expected_dsn
 			var (validFrom, validUntil) = ExtractDates(tags);
 
 			result.Add(new RoadWorkRecord(
@@ -138,9 +160,15 @@ public sealed class OsmRoadWorkProvider : IRoadWorkDataProvider
 		return result;
 	}
 
+	/// <summary>
+	/// Extracts a human-readable title from OSM tags, falling back to "Road works".
+	/// </summary>
+	/// <param name="tags">The tags element from an OSM feature.</param>
+	/// <returns>A title string no longer than 200 characters.</returns>
 	private static string ExtractTitle(JsonElement tags)
 	{
-		if (tags.ValueKind != JsonValueKind.Object) return "Road works";
+		if (tags.ValueKind != JsonValueKind.Object)
+			return "Road works";
 
 		if (tags.TryGetProperty("name", out var name) && !string.IsNullOrWhiteSpace(name.GetString()))
 			return name.GetString()!;
@@ -154,25 +182,29 @@ public sealed class OsmRoadWorkProvider : IRoadWorkDataProvider
 		return "Road works";
 	}
 
-	private static (DateTime From, DateTime Until) ExtractDates(JsonElement tags)
+	/// <summary>
+	/// Extracts the validity window from OSM date tags.
+	/// Falls back to today through +30 days when no date tags are present.
+	/// </summary>
+	/// <param name="tags">The tags element from an OSM feature.</param>
+	/// <returns>A tuple of (ValidFromUtc, ValidUntilUtc).</returns>
+	private static (DateTime ValidFrom, DateTime ValidUntil) ExtractDates(JsonElement tags)
 	{
-		var now = DateTime.UtcNow;
-		var from = now;
-		var until = now.AddDays(30); // conservative default
+		var validFrom = DateTime.UtcNow;
+		var validUntil = DateTime.UtcNow.AddDays(30);
 
-		if (tags.ValueKind != JsonValueKind.Object) return (from, until);
+		if (tags.ValueKind != JsonValueKind.Object)
+			return (validFrom, validUntil);
 
-		// "date:open" = expected reopening date
-		if (tags.TryGetProperty("date:open", out var openDate)
-			&& DateTime.TryParse(openDate.GetString(), out var parsedOpen))
-			until = parsedOpen.ToUniversalTime();
+		if (tags.TryGetProperty("construction:date", out var startEl) && DateTime.TryParse(startEl.GetString(), out var parsedStart))
+			validFrom = parsedStart.ToUniversalTime();
 
-		// "construction:date" = start date
-		if (tags.TryGetProperty("construction:date", out var startDate)
-			&& DateTime.TryParse(startDate.GetString(), out var parsedStart))
-			from = parsedStart.ToUniversalTime();
+		if (tags.TryGetProperty("date:open", out var endEl) && DateTime.TryParse(endEl.GetString(), out var parsedEnd))
+			validUntil = parsedEnd.ToUniversalTime();
+		else if (tags.TryGetProperty("expected_dsn", out var dsnEl) && DateTime.TryParse(dsnEl.GetString(), out var parsedDsn))
+			validUntil = parsedDsn.ToUniversalTime();
 
-		return (from, until);
+		return (validFrom, validUntil);
 	}
 	#endregion
 }
