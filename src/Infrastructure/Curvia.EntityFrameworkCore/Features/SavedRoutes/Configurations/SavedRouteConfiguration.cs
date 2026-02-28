@@ -72,11 +72,11 @@ internal sealed class SavedRouteConfiguration : IEntityTypeConfiguration<SavedRo
 			.HasColumnName("Visibility");
 		#endregion
 
-		#region Reviews (child entity collection)
-		builder.HasMany(x => x.Reviews)
-			.WithOne()
-			.HasForeignKey("SavedRouteId")
-			.OnDelete(DeleteBehavior.Cascade);
+		#region Reviews (owned entity collection)
+		builder.Navigation(x => x.Reviews)
+			.UsePropertyAccessMode(PropertyAccessMode.Field);
+
+		builder.OwnsMany(x => x.Reviews, RouteReviewConfiguration.Configure);
 		#endregion
 
 		#region Indexes

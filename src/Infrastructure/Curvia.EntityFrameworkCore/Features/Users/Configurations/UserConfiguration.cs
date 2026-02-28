@@ -25,7 +25,7 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
 	/// <param name="builder">Entity type builder.</param>
 	public void Configure(EntityTypeBuilder<User> builder)
 	{
-		builder.ToTable(DbTableNames.AppUsers);
+		builder.ToTable(DbTableNames.Users);
 
 		#region Primary key
 		builder.HasKey(x => x.Id);

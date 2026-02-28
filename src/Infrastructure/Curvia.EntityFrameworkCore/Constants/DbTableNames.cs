@@ -35,7 +35,7 @@ internal static class DbTableNames
 	/// <summary>
 	/// Table name for application users persistence.
 	/// </summary>
-	public const string AppUsers = nameof(AppUsers);
+	public const string Users = nameof(Users);
 
 	/// <summary>
 	/// Table name for motorcycles persistence.
