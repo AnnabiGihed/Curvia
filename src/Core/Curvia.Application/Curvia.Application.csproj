@@ -11,9 +11,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Pivot.Framework.Application" Version="1.1.4" />
-    <PackageReference Include="Pivot.Framework.Infrastructure.Caching" Version="1.1.4" />
-    <PackageReference Include="Pivot.Framework.Tools.DependencyInjection" Version="1.1.4" />
+    <PackageReference Include="Pivot.Framework.Application" Version="1.1.5" />
+    <PackageReference Include="Pivot.Framework.Infrastructure.Caching" Version="1.1.5" />
+    <PackageReference Include="Pivot.Framework.Tools.DependencyInjection" Version="1.1.5" />
   </ItemGroup>
 
 </Project>

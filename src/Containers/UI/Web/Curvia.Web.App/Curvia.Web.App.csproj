@@ -10,7 +10,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.3" />
     <PackageReference Include="Radzen.Blazor" Version="9.0.6" />
-    <PackageReference Include="Pivot.Framework.Authentication.Blazor" Version="1.1.4" />
+    <PackageReference Include="Pivot.Framework.Authentication.Blazor" Version="1.1.5" />
   </ItemGroup>
 
   <ItemGroup>

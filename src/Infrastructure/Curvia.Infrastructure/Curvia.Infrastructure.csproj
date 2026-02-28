@@ -9,9 +9,9 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.3" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.3" />
-    <PackageReference Include="Pivot.Framework.Authentication.Hangfire" Version="1.1.4" />
+    <PackageReference Include="Pivot.Framework.Authentication.Hangfire" Version="1.1.5" />
     <PackageReference Include="RabbitMQ.Client" Version="7.2.0" />
-    <PackageReference Include="Pivot.Framework.Infrastructure.Scheduling" Version="1.1.4" />
+    <PackageReference Include="Pivot.Framework.Infrastructure.Scheduling" Version="1.1.5" />
   </ItemGroup>
 
   <ItemGroup>
