@@ -52,48 +52,48 @@ public static class AwarenessJobsSetup
 		{
 			var cc = countryCode; // closure capture
 
-			RecurringJob.AddOrUpdate<IncidentSyncJob>(
+			RecurringJob.AddOrUpdate<SpeedCameraSyncJob>(
 				$"sync-speed-cameras-{cc.ToLower()}",
 				job => job.RunAsync(cc, CancellationToken.None),
 				"*/3 * * * *");
 		}
 		#endregion
 
-		#region Hazards — monthly per country (1st of month, 03:00 UTC)
-		foreach (var countryCode in CountryBoundingBoxes.AllCountryCodes)
-		{
-			var cc = countryCode;
+		//#region Hazards — monthly per country (1st of month, 03:00 UTC)
+		//foreach (var countryCode in CountryBoundingBoxes.AllCountryCodes)
+		//{
+		//	var cc = countryCode;
 
-			RecurringJob.AddOrUpdate<IncidentSyncJob>(
-				$"sync-hazards-{cc.ToLower()}",
-				job => job.RunAsync(cc, CancellationToken.None),
-				"*/3 * * * *");
-		}
-		#endregion
+		//	RecurringJob.AddOrUpdate<HazardSyncJob>(
+		//		$"sync-hazards-{cc.ToLower()}",
+		//		job => job.RunAsync(cc, CancellationToken.None),
+		//		"*/3 * * * *");
+		//}
+		//#endregion
 
-		#region Road works — every 4 hours per country
-		foreach (var countryCode in CountryBoundingBoxes.AllCountryCodes)
-		{
-			var cc = countryCode;
+		//#region Road works — every 4 hours per country
+		//foreach (var countryCode in CountryBoundingBoxes.AllCountryCodes)
+		//{
+		//	var cc = countryCode;
 
-			RecurringJob.AddOrUpdate<IncidentSyncJob>(
-				$"sync-roadworks-{cc.ToLower()}",
-				job => job.RunAsync(cc, CancellationToken.None),
-				"*/3 * * * *");
-		}
-		#endregion
+		//	RecurringJob.AddOrUpdate<RoadWorkSyncJob>(
+		//		$"sync-roadworks-{cc.ToLower()}",
+		//		job => job.RunAsync(cc, CancellationToken.None),
+		//		"*/3 * * * *");
+		//}
+		//#endregion
 
-		#region Incidents — every 3 minutes per country
-		foreach (var countryCode in CountryBoundingBoxes.AllCountryCodes)
-		{
-			var cc = countryCode;
+		//#region Incidents — every 3 minutes per country
+		//foreach (var countryCode in CountryBoundingBoxes.AllCountryCodes)
+		//{
+		//	var cc = countryCode;
 
-			RecurringJob.AddOrUpdate<IncidentSyncJob>(
-				$"sync-incidents-{cc.ToLower()}",
-				job => job.RunAsync(cc, CancellationToken.None),
-				"*/3 * * * *");
-		}
-		#endregion
+		//	RecurringJob.AddOrUpdate<IncidentSyncJob>(
+		//		$"sync-incidents-{cc.ToLower()}",
+		//		job => job.RunAsync(cc, CancellationToken.None),
+		//		"*/3 * * * *");
+		//}
+		//#endregion
 
 		#region Cleanup — expired road works + incidents, hourly
 		RecurringJob.AddOrUpdate(
