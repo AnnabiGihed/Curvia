@@ -17,6 +17,9 @@ namespace Curvia.Application.Features.Awareness.Commands.SyncIncidents;
 ///              upserts them by natural key (ExternalId + Source + CountryCode), and purges
 ///              expired incidents after each run.
 ///              Runs every 3 minutes per country — optimised for low-latency incident updates.
+///
+///              Returns Result.Failure when one or more providers fail so that Hangfire marks
+///              the per-country job as failed and retries it automatically.
 /// </summary>
 internal sealed class SyncIncidentsCommandHandler : ICommandHandler<SyncIncidentsCommand>
 {
@@ -52,7 +55,11 @@ internal sealed class SyncIncidentsCommandHandler : ICommandHandler<SyncIncident
 	/// </summary>
 	/// <param name="command">Contains the ISO 3166-1 alpha-2 country code to sync.</param>
 	/// <param name="ct">Cancellation token.</param>
-	/// <returns>A success result when the sync completes; also success when no feed is configured for this country.</returns>
+	/// <returns>
+	/// A success result when all providers succeed and the sync completes.
+	/// A failure result when one or more providers fail — Hangfire will mark the job as failed.
+	/// Also returns success when no feed is configured for this country (not a failure condition).
+	/// </returns>
 	public async Task<Result> Handle(SyncIncidentsCommand command, CancellationToken ct)
 	{
 		var country = command.CountryCode.ToUpperInvariant();
@@ -71,7 +78,7 @@ internal sealed class SyncIncidentsCommandHandler : ICommandHandler<SyncIncident
 
 		// Resilient parallel fetch — one provider failing does not abort the others.
 		// Records are kept paired with their source provider to correctly derive Source.
-		var providerRecordPairs = await FetchFromApplicableProvidersAsync(applicable, country, ct);
+		var (providerRecordPairs, hadProviderFailure, failedProviders) = await FetchFromApplicableProvidersAsync(applicable, country, ct);
 
 		_logger.LogInformation("Incident sync for {Country}: {Count} records fetched.", country, providerRecordPairs.Count);
 
@@ -107,6 +114,11 @@ internal sealed class SyncIncidentsCommandHandler : ICommandHandler<SyncIncident
 		await _repository.DeleteExpiredAsync(ct);
 
 		_logger.LogInformation("Incident sync for {Country} complete: {Inserted} inserted, {Updated} updated, {Skipped} skipped.", country, inserted, updated, skipped);
+
+		// Propagate provider failures so Hangfire marks the per-country job as failed.
+		if (hadProviderFailure)
+			return Result.Failure(new Error("ProviderError", $"Incident sync for {country} had failing provider(s): {string.Join(", ", failedProviders)}."));
+
 		return Result.Success();
 	}
 	#endregion
@@ -121,26 +133,37 @@ internal sealed class SyncIncidentsCommandHandler : ICommandHandler<SyncIncident
 	/// <param name="providers">Providers that support the target country.</param>
 	/// <param name="country">ISO 3166-1 alpha-2 country code.</param>
 	/// <param name="ct">Cancellation token.</param>
-	/// <returns>List of (record, sourceName) pairs from all providers that succeeded.</returns>
-	private async Task<List<(IncidentRecord Record, string Source)>> FetchFromApplicableProvidersAsync(List<IIncidentFeedProvider> providers, string country, CancellationToken ct)
+	/// <returns>
+	/// A tuple of: the flat list of (record, sourceName) pairs from all providers that succeeded,
+	/// a flag indicating whether any provider failed, and the list of failed provider names.
+	/// </returns>
+	private async Task<(List<(IncidentRecord Record, string Source)> Records, bool HadFailure, List<string> FailedProviders)>
+		FetchFromApplicableProvidersAsync(List<IIncidentFeedProvider> providers, string country, CancellationToken ct)
 	{
+		var failedProviders = new List<string>();
+
 		var tasks = providers.Select(async provider =>
 		{
 			try
 			{
 				var records = await provider.FetchAsync(country, ct);
 				// Pair every record with its originating provider name.
-				return records.Select(r => (Record: r, Source: provider.ProviderName));
+				return (Records: records.Select(r => (Record: r, Source: provider.ProviderName)), Failed: false, ProviderName: provider.ProviderName);
 			}
 			catch (Exception ex)
 			{
 				_logger.LogError(ex, "Incident provider {Provider} failed for country {Country}.", provider.ProviderName, country);
-				return Enumerable.Empty<(IncidentRecord, string)>();
+				return (Records: Enumerable.Empty<(IncidentRecord, string)>(), Failed: true, ProviderName: provider.ProviderName);
 			}
 		}).ToList();
 
 		var results = await Task.WhenAll(tasks);
-		return results.SelectMany(r => r).ToList();
+
+		foreach (var result in results.Where(r => r.Failed))
+			failedProviders.Add(result.ProviderName);
+
+		var records = results.SelectMany(r => r.Records).ToList();
+		return (records, failedProviders.Count > 0, failedProviders);
 	}
 	#endregion
 }

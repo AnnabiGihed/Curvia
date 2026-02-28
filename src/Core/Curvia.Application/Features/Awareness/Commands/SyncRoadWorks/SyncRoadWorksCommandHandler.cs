@@ -16,6 +16,9 @@ namespace Curvia.Application.Features.Awareness.Commands.SyncRoadWorks;
 ///              (resilient — one failing provider does not abort the others), upserts
 ///              them by natural key (ExternalId + Source + CountryCode), and purges
 ///              expired records after each run.
+///
+///              Returns Result.Failure when one or more providers fail so that Hangfire marks
+///              the per-country job as failed and retries it automatically.
 /// </summary>
 internal sealed class SyncRoadWorksCommandHandler : ICommandHandler<SyncRoadWorksCommand>
 {
@@ -51,7 +54,10 @@ internal sealed class SyncRoadWorksCommandHandler : ICommandHandler<SyncRoadWork
 	/// </summary>
 	/// <param name="command">Contains the ISO 3166-1 alpha-2 country code to sync.</param>
 	/// <param name="ct">Cancellation token.</param>
-	/// <returns>A success result when the sync completes without fatal error.</returns>
+	/// <returns>
+	/// A success result when all providers succeed and the sync completes.
+	/// A failure result when one or more providers fail — Hangfire will mark the job as failed.
+	/// </returns>
 	public async Task<Result> Handle(SyncRoadWorksCommand command, CancellationToken ct)
 	{
 		var country = command.CountryCode.ToUpperInvariant();
@@ -69,7 +75,7 @@ internal sealed class SyncRoadWorksCommandHandler : ICommandHandler<SyncRoadWork
 		}
 
 		// Resilient parallel fetch — one provider failing does not abort the others.
-		var records = await FetchFromApplicableProvidersAsync(applicable, country, ct);
+		var (records, hadProviderFailure, failedProviders) = await FetchFromApplicableProvidersAsync(applicable, country, ct);
 
 		_logger.LogInformation("Road-work sync for {Country}: {Count} records fetched across {Providers} provider(s).", country, records.Count, applicable.Count);
 
@@ -107,6 +113,11 @@ internal sealed class SyncRoadWorksCommandHandler : ICommandHandler<SyncRoadWork
 		await _repository.DeleteExpiredAsync(ct);
 
 		_logger.LogInformation("Road-work sync for {Country} complete: {Inserted} inserted, {Updated} updated, {Skipped} skipped.", country, inserted, updated, skipped);
+
+		// Propagate provider failures so Hangfire marks the per-country job as failed.
+		if (hadProviderFailure)
+			return Result.Failure(new Error("ProviderError", $"Road-work sync for {country} had failing provider(s): {string.Join(", ", failedProviders)}."));
+
 		return Result.Success();
 	}
 	#endregion
@@ -120,24 +131,36 @@ internal sealed class SyncRoadWorksCommandHandler : ICommandHandler<SyncRoadWork
 	/// <param name="providers">Providers that support the target country.</param>
 	/// <param name="country">ISO 3166-1 alpha-2 country code.</param>
 	/// <param name="ct">Cancellation token.</param>
-	/// <returns>Combined list of raw road-work records from all providers that succeeded.</returns>
-	private async Task<List<RoadWorkRecord>> FetchFromApplicableProvidersAsync(List<IRoadWorkDataProvider> providers, string country, CancellationToken ct)
+	/// <returns>
+	/// A tuple of: the combined list of raw road-work records from providers that succeeded,
+	/// a flag indicating whether any provider failed, and the list of failed provider names.
+	/// </returns>
+	private async Task<(List<RoadWorkRecord> Records, bool HadFailure, List<string> FailedProviders)>
+		FetchFromApplicableProvidersAsync(List<IRoadWorkDataProvider> providers, string country, CancellationToken ct)
 	{
+		var failedProviders = new List<string>();
+
 		var tasks = providers.Select(async provider =>
 		{
 			try
 			{
-				return await provider.FetchAsync(country, ct);
+				var records = await provider.FetchAsync(country, ct);
+				return (Records: records, Failed: false, ProviderName: provider.ProviderName);
 			}
 			catch (Exception ex)
 			{
 				_logger.LogError(ex, "Road-work provider {Provider} failed for country {Country}.", provider.ProviderName, country);
-				return Enumerable.Empty<RoadWorkRecord>();
+				return (Records: (IReadOnlyList<RoadWorkRecord>)Array.Empty<RoadWorkRecord>(), Failed: true, ProviderName: provider.ProviderName);
 			}
 		}).ToList();
 
 		var results = await Task.WhenAll(tasks);
-		return results.SelectMany(r => r).ToList();
+
+		foreach (var result in results.Where(r => r.Failed))
+			failedProviders.Add(result.ProviderName);
+
+		var allRecords = results.SelectMany(r => r.Records).ToList();
+		return (allRecords, failedProviders.Count > 0, failedProviders);
 	}
 
 	/// <summary>

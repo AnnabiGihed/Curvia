@@ -8,6 +8,7 @@ using Curvia.Application.Features.Awareness.Contracts.Providers;
 using Curvia.Infrastructure.Features.Awareness.Providers.Incidents.Configurations;
 
 namespace Curvia.Infrastructure.Features.Awareness.Providers.Incidents;
+
 /// <summary>
 /// Author      : Gihed Annabi
 /// Date        : 02-2026
@@ -25,6 +26,10 @@ namespace Curvia.Infrastructure.Features.Awareness.Providers.Incidents;
 ///
 ///              Format support: DATEX II JSON (primary) and DATEX II XML (fallback).
 ///              The NDW feed uses a custom GeoJSON format handled separately.
+///
+///              HTTP failures are logged and re-thrown so the caller
+///              (SyncIncidentsCommandHandler) can track them as provider failures
+///              and surface them as Hangfire job failures per country.
 /// </summary>
 public sealed class DatexIIIncidentProvider : IIncidentFeedProvider
 {
@@ -52,6 +57,11 @@ public sealed class DatexIIIncidentProvider : IIncidentFeedProvider
 	#endregion
 
 	#region IIncidentFeedProvider
+	/// <summary>
+	/// Fetches all incident records for the given country from all configured DATEX II feeds.
+	/// HTTP failures from individual feeds are logged and re-thrown so the caller can
+	/// treat a failing feed as a failed provider (surfaced as a Hangfire job failure).
+	/// </summary>
 	public async Task<IReadOnlyList<IncidentRecord>> FetchAsync(
 		string countryCode, CancellationToken ct = default)
 	{
@@ -68,6 +78,7 @@ public sealed class DatexIIIncidentProvider : IIncidentFeedProvider
 		var results = new List<IncidentRecord>();
 		foreach (var feed in feeds)
 		{
+			// Let the exception propagate — FetchFeedAsync logs before rethrowing.
 			var records = await FetchFeedAsync(feed, ct);
 			results.AddRange(records);
 		}
@@ -77,6 +88,11 @@ public sealed class DatexIIIncidentProvider : IIncidentFeedProvider
 	#endregion
 
 	#region Private helpers
+	/// <summary>
+	/// Fetches and parses a single DATEX II feed.
+	/// Logs the error then re-throws so the failure is visible in Hangfire
+	/// as a per-country job failure rather than silently returning empty data.
+	/// </summary>
 	private async Task<IReadOnlyList<IncidentRecord>> FetchFeedAsync(
 		IncidentFeedConfig feed, CancellationToken ct)
 	{
@@ -96,7 +112,7 @@ public sealed class DatexIIIncidentProvider : IIncidentFeedProvider
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "Incident feed request failed for {CountryCode}.", feed.CountryCode);
-			return Array.Empty<IncidentRecord>();
+			throw; // re-throw so SyncIncidentsCommandHandler records this as a provider failure
 		}
 
 		var content = await response.Content.ReadAsStringAsync(ct);
@@ -144,7 +160,7 @@ public sealed class DatexIIIncidentProvider : IIncidentFeedProvider
 						var incident = ParseDatexIISituationRecord(rec, situationId, countryCode);
 						if (incident is not null) records.Add(incident);
 					}
-					catch { /* skip malformed records */ }
+					catch { /* skip malformed individual records */ }
 				}
 			}
 		}
@@ -281,17 +297,18 @@ public sealed class DatexIIIncidentProvider : IIncidentFeedProvider
 		}
 	}
 
-	private static Dictionary<string, object?> ConvertXmlToDict(XmlElement el)
+	private static Dictionary<string, object?> ConvertXmlToDict(XmlElement element)
 	{
 		var dict = new Dictionary<string, object?>();
-		foreach (XmlAttribute attr in el.Attributes)
+
+		foreach (XmlAttribute attr in element.Attributes)
 			dict[$"@{attr.Name}"] = attr.Value;
 
-		foreach (XmlNode child in el.ChildNodes)
+		foreach (XmlNode child in element.ChildNodes)
 		{
-			if (child is XmlElement childEl)
+			if (child is XmlElement childElement)
 			{
-				var childDict = ConvertXmlToDict(childEl);
+				var childDict = ConvertXmlToDict(childElement);
 				if (dict.ContainsKey(child.Name))
 				{
 					if (dict[child.Name] is List<object> list)
@@ -300,13 +317,20 @@ public sealed class DatexIIIncidentProvider : IIncidentFeedProvider
 						dict[child.Name] = new List<object> { dict[child.Name]!, childDict };
 				}
 				else
+				{
 					dict[child.Name] = childDict;
+				}
+			}
+			else if (child is XmlText textNode && !string.IsNullOrWhiteSpace(textNode.Value))
+			{
+				dict["#text"] = textNode.Value?.Trim();
 			}
 		}
+
 		return dict;
 	}
 
-	// ─── NDW GeoJSON (Netherlands) ───────────────────────────────
+	// ─── NDW GeoJSON ─────────────────────────────────────────────
 
 	private IReadOnlyList<IncidentRecord> ParseNdwJson(string json, string countryCode)
 	{
@@ -320,45 +344,38 @@ public sealed class DatexIIIncidentProvider : IIncidentFeedProvider
 			{
 				try
 				{
-					var props = feature.GetProperty("properties");
-					var geom = feature.GetProperty("geometry");
+					if (!feature.TryGetProperty("geometry", out var geometry)) continue;
+					if (!geometry.TryGetProperty("coordinates", out var coords)) continue;
 
-					if (geom.GetProperty("type").GetString() != "Point") continue;
-					var coords = geom.GetProperty("coordinates");
-					var lon = coords[0].GetDouble();
-					var lat = coords[1].GetDouble();
+					var coordArr = coords.EnumerateArray().ToList();
+					if (coordArr.Count < 2) continue;
 
-					var id = props.TryGetProperty("id", out var idEl) ? idEl.GetString() ?? Guid.NewGuid().ToString() : Guid.NewGuid().ToString();
-					var type = props.TryGetProperty("type", out var typeEl) ? typeEl.GetString() : "other";
+					var lon = coordArr[0].GetDouble();
+					var lat = coordArr[1].GetDouble();
 
-					var from = DateTime.UtcNow;
-					var until = DateTime.UtcNow.AddHours(1);
-					if (props.TryGetProperty("startTime", out var startEl) && DateTime.TryParse(startEl.GetString(), out var parsedStart))
-						from = parsedStart.ToUniversalTime();
-					if (props.TryGetProperty("stopTime", out var stopEl) && DateTime.TryParse(stopEl.GetString(), out var parsedStop))
-						until = parsedStop.ToUniversalTime();
+					var props = feature.TryGetProperty("properties", out var p) ? p : default;
 
-					if (until <= DateTime.UtcNow) continue;
+					var externalId = props.ValueKind != JsonValueKind.Undefined && props.TryGetProperty("id", out var id)
+						? $"datex2:{id.GetString()}"
+						: $"datex2:{Guid.NewGuid()}";
 
-					var incidentType = type?.ToLowerInvariant() switch
-					{
-						"accident" => IncidentType.Accident,
-						"roadworks" => IncidentType.WorkInProgress,
-						"closure" => IncidentType.RoadClosure,
-						_ => IncidentType.Other
-					};
+					var description = props.ValueKind != JsonValueKind.Undefined && props.TryGetProperty("description", out var desc)
+						? desc.GetString()
+						: null;
+
+					var now = DateTime.UtcNow;
 
 					records.Add(new IncidentRecord(
-						ExternalId: $"ndw:{id}",
+						ExternalId: externalId,
 						Latitude: lat,
 						Longitude: lon,
-						IncidentType: incidentType,
+						IncidentType: IncidentType.Other,
 						Severity: IncidentSeverity.Unknown,
-						Description: null,
-						ValidFromUtc: from,
-						ValidUntilUtc: until));
+						Description: description,
+						ValidFromUtc: now,
+						ValidUntilUtc: now.AddHours(2)));
 				}
-				catch { }
+				catch { /* skip malformed individual features */ }
 			}
 		}
 		catch (Exception ex)

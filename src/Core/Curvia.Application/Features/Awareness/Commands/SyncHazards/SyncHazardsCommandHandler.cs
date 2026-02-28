@@ -19,6 +19,9 @@ namespace Curvia.Application.Features.Awareness.Commands.SyncHazards;
 ///              other, deletes existing data per source for the country, then upserts the
 ///              deduplicated dataset.
 ///              Runs monthly per country — permanent hazard locations rarely change.
+///
+///              Returns Result.Failure when one or more providers fail so that Hangfire marks
+///              the per-country job as failed and retries it automatically.
 /// </summary>
 internal sealed class SyncHazardsCommandHandler : ICommandHandler<SyncHazardsCommand>
 {
@@ -62,15 +65,18 @@ internal sealed class SyncHazardsCommandHandler : ICommandHandler<SyncHazardsCom
 	/// </summary>
 	/// <param name="command">Contains the ISO 3166-1 alpha-2 country code to sync.</param>
 	/// <param name="ct">Cancellation token.</param>
-	/// <returns>A success result when the sync completes without fatal error.</returns>
+	/// <returns>
+	/// A success result when all providers succeed and the sync completes.
+	/// A failure result when one or more providers fail — Hangfire will mark the job as failed.
+	/// </returns>
 	public async Task<Result> Handle(SyncHazardsCommand command, CancellationToken ct)
 	{
 		var country = command.CountryCode.ToUpperInvariant();
 		_logger.LogInformation("Hazard sync started for country {Country}.", country);
 
-		var allRecords = await FetchFromAllProvidersAsync(country, ct);
+		var (allRecords, hadProviderFailure, failedProviders) = await FetchFromAllProvidersAsync(country, ct);
 
-		if (allRecords.Count == 0)
+		if (allRecords.Count == 0 && !hadProviderFailure)
 		{
 			_logger.LogWarning("Hazard sync for {Country}: no records returned from any provider.", country);
 			return Result.Success();
@@ -117,6 +123,11 @@ internal sealed class SyncHazardsCommandHandler : ICommandHandler<SyncHazardsCom
 		}
 
 		_logger.LogInformation("Hazard sync for {Country} complete: {Inserted} inserted, {Updated} updated, {Skipped} skipped.", country, inserted, updated, skipped);
+
+		// Propagate provider failures so Hangfire marks the per-country job as failed.
+		if (hadProviderFailure)
+			return Result.Failure(new Error("ProviderError", $"Hazard sync for {country} had failing provider(s): {string.Join(", ", failedProviders)}."));
+
 		return Result.Success();
 	}
 	#endregion
@@ -128,21 +139,36 @@ internal sealed class SyncHazardsCommandHandler : ICommandHandler<SyncHazardsCom
 	/// </summary>
 	/// <param name="country">Uppercase ISO country code.</param>
 	/// <param name="ct">Cancellation token.</param>
-	/// <returns>Flat list of all records from all successful providers.</returns>
-	private async Task<List<HazardRecord>> FetchFromAllProvidersAsync(string country, CancellationToken ct)
+	/// <returns>
+	/// A tuple of: the flat list of all records from successful providers,
+	/// a flag indicating whether any provider failed, and the list of failed provider names.
+	/// </returns>
+	private async Task<(List<HazardRecord> Records, bool HadFailure, List<string> FailedProviders)>
+		FetchFromAllProvidersAsync(string country, CancellationToken ct)
 	{
+		var failedProviders = new List<string>();
+
 		var tasks = _providers.Select(async p =>
 		{
-			try { return await p.FetchAsync(country, ct); }
+			try
+			{
+				var records = await p.FetchAsync(country, ct);
+				return (Records: records, Failed: false, ProviderName: p.ProviderName);
+			}
 			catch (Exception ex)
 			{
 				_logger.LogError(ex, "Hazard provider {Provider} failed for {Country}.", p.ProviderName, country);
-				return Array.Empty<HazardRecord>();
+				return (Records: (IReadOnlyList<HazardRecord>)Array.Empty<HazardRecord>(), Failed: true, ProviderName: p.ProviderName);
 			}
 		});
 
 		var results = await Task.WhenAll(tasks);
-		return results.SelectMany(r => r).ToList();
+
+		foreach (var result in results.Where(r => r.Failed))
+			failedProviders.Add(result.ProviderName);
+
+		var allRecords = results.SelectMany(r => r.Records).ToList();
+		return (allRecords, failedProviders.Count > 0, failedProviders);
 	}
 
 	/// <summary>

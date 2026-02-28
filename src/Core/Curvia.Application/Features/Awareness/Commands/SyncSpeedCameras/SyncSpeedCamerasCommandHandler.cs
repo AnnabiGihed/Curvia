@@ -1,6 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
 using Pivot.Framework.Domain.Shared;
-using Curvia.Domain.Features.Awareness.Enums;
 using Curvia.Domain.Features.Awareness.Aggregates;
 using Curvia.Domain.Features.Awareness.Repositories;
 using Curvia.Application.Features.Awareness.Contracts.Records;
@@ -18,6 +17,9 @@ namespace Curvia.Application.Features.Awareness.Commands.SyncSpeedCameras;
 ///              sources that are within 50 m of each other, deletes existing data per source,
 ///              then upserts the deduplicated dataset.
 ///              Runs weekly per country — speed camera locations change infrequently.
+///
+///              Returns Result.Failure when one or more providers fail so that Hangfire marks
+///              the per-country job as failed and retries it automatically.
 /// </summary>
 internal sealed class SyncSpeedCamerasCommandHandler : ICommandHandler<SyncSpeedCamerasCommand>
 {
@@ -61,15 +63,18 @@ internal sealed class SyncSpeedCamerasCommandHandler : ICommandHandler<SyncSpeed
 	/// </summary>
 	/// <param name="command">Contains the ISO 3166-1 alpha-2 country code to sync.</param>
 	/// <param name="ct">Cancellation token.</param>
-	/// <returns>A success result when the sync completes without fatal error.</returns>
+	/// <returns>
+	/// A success result when all providers succeed and the sync completes.
+	/// A failure result when one or more providers fail — Hangfire will mark the job as failed.
+	/// </returns>
 	public async Task<Result> Handle(SyncSpeedCamerasCommand command, CancellationToken ct)
 	{
 		var country = command.CountryCode.ToUpperInvariant();
 		_logger.LogInformation("Speed-camera sync started for country {Country}.", country);
 
-		var allRecords = await FetchFromAllProvidersAsync(country, ct);
+		var (allRecords, hadProviderFailure, failedProviders) = await FetchFromAllProvidersAsync(country, ct);
 
-		if (allRecords.Count == 0)
+		if (allRecords.Count == 0 && !hadProviderFailure)
 		{
 			_logger.LogWarning("Speed-camera sync for {Country}: no records returned from any provider.", country);
 			return Result.Success();
@@ -117,6 +122,11 @@ internal sealed class SyncSpeedCamerasCommandHandler : ICommandHandler<SyncSpeed
 		}
 
 		_logger.LogInformation("Speed-camera sync for {Country} complete: {Inserted} inserted, {Updated} updated, {Skipped} skipped.", country, inserted, updated, skipped);
+
+		// Propagate provider failures so Hangfire marks the per-country job as failed.
+		if (hadProviderFailure)
+			return Result.Failure(new Error("ProviderError", $"Speed-camera sync for {country} had failing provider(s): {string.Join(", ", failedProviders)}."));
+
 		return Result.Success();
 	}
 	#endregion
@@ -128,21 +138,36 @@ internal sealed class SyncSpeedCamerasCommandHandler : ICommandHandler<SyncSpeed
 	/// </summary>
 	/// <param name="country">Uppercase ISO country code.</param>
 	/// <param name="ct">Cancellation token.</param>
-	/// <returns>Flat list of all records from all successful providers.</returns>
-	private async Task<List<SpeedCameraRecord>> FetchFromAllProvidersAsync(string country, CancellationToken ct)
+	/// <returns>
+	/// A tuple of: the flat list of all records from successful providers,
+	/// a flag indicating whether any provider failed, and the list of failed provider names.
+	/// </returns>
+	private async Task<(List<SpeedCameraRecord> Records, bool HadFailure, List<string> FailedProviders)>
+		FetchFromAllProvidersAsync(string country, CancellationToken ct)
 	{
+		var failedProviders = new List<string>();
+
 		var tasks = _providers.Select(async p =>
 		{
-			try { return await p.FetchAsync(country, ct); }
+			try
+			{
+				var records = await p.FetchAsync(country, ct);
+				return (Records: records, Failed: false, ProviderName: p.ProviderName);
+			}
 			catch (Exception ex)
 			{
 				_logger.LogError(ex, "Speed-camera provider {Provider} failed for {Country}.", p.ProviderName, country);
-				return Array.Empty<SpeedCameraRecord>();
+				return (Records: (IReadOnlyList<SpeedCameraRecord>)Array.Empty<SpeedCameraRecord>(), Failed: true, ProviderName: p.ProviderName);
 			}
 		});
 
 		var results = await Task.WhenAll(tasks);
-		return results.SelectMany(r => r).ToList();
+
+		foreach (var result in results.Where(r => r.Failed))
+			failedProviders.Add(result.ProviderName);
+
+		var allRecords = results.SelectMany(r => r.Records).ToList();
+		return (allRecords, failedProviders.Count > 0, failedProviders);
 	}
 
 	/// <summary>
