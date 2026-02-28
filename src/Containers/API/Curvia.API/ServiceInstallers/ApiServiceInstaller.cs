@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using Curvia.API.Middleware.Identity;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Authorization;
+using Pivot.Framework.Authentication.Hangfire.Extensions;
 using Pivot.Framework.Tools.DependencyInjection;
 using Pivot.Framework.Tools.DependencyInjection.Abstractions;
 
