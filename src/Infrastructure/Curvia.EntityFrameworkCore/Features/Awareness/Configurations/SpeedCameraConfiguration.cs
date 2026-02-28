@@ -73,6 +73,9 @@ internal sealed class SpeedCameraConfiguration : IEntityTypeConfiguration<SpeedC
 		{
 			pos.Property(p => p.Latitude).HasColumnName("Latitude").IsRequired().HasColumnType("float");
 			pos.Property(p => p.Longitude).HasColumnName("Longitude").IsRequired().HasColumnType("float");
+
+			pos.HasIndex(p => new { p.Latitude, p.Longitude })
+				.HasDatabaseName("IX_SpeedCameras_Latitude_Longitude");
 		});
 		#endregion
 
@@ -118,10 +121,6 @@ internal sealed class SpeedCameraConfiguration : IEntityTypeConfiguration<SpeedC
 		// Natural key for upsert lookups
 		builder.HasIndex("ExternalId", "Source", "CountryCode")
 			.HasDatabaseName("IX_SpeedCameras_ExternalId_Source_CountryCode");
-
-		// Spatial query index (WHERE Latitude BETWEEN ... AND Longitude BETWEEN ...)
-		builder.HasIndex("Latitude", "Longitude")
-			.HasDatabaseName("IX_SpeedCameras_Latitude_Longitude");
 		#endregion
 	}
 }

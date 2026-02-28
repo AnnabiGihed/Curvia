@@ -1,8 +1,8 @@
 ﻿using Radzen;
 using System.Reflection.Metadata;
-using Templates.Core.Tools.DependencyInjection;
-using Templates.Core.Authentication.Blazor.Extensions;
-using Templates.Core.Tools.DependencyInjection.Abstractions;
+using Pivot.Framework.Tools.DependencyInjection;
+using Pivot.Framework.Authentication.Blazor.Extensions;
+using Pivot.Framework.Tools.DependencyInjection.Abstractions;
 
 namespace Curvia.Web.App.ServiceInstallers;
 

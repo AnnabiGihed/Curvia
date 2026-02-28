@@ -1,5 +1,5 @@
-﻿using Templates.Core.Domain.Shared;
-using Templates.Core.Domain.Primitives;
+﻿using Pivot.Framework.Domain.Shared;
+using Pivot.Framework.Domain.Primitives;
 using Curvia.Domain.Features.Users.Aggregate;
 using Curvia.Domain.Features.Motorcycles.ValueObjects;
 

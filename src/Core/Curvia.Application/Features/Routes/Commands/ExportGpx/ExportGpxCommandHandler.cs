@@ -1,6 +1,6 @@
 ﻿using System.Xml.Linq;
-using Templates.Core.Domain.Shared;
-using Templates.Core.Application.Abstractions.Messaging.Commands;
+using Pivot.Framework.Domain.Shared;
+using Pivot.Framework.Application.Abstractions.Messaging.Commands;
 using Curvia.Application.Features.Routes.Commands.ExportGpx.Responses;
 
 namespace Curvia.Application.Features.Routes.Commands.ExportGpx;

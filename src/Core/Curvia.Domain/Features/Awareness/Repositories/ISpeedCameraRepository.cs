@@ -1,4 +1,4 @@
-﻿using Templates.Core.Domain.Repositories;
+﻿using Pivot.Framework.Domain.Repositories;
 using Curvia.Domain.Features.Awareness.Aggregates;
 using Curvia.Domain.Features.Awareness.ValueObjects;
 

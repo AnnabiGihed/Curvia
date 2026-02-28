@@ -1,5 +1,5 @@
 ﻿using Curvia.Domain.Features.SavedRoutes.Enums;
-using Templates.Core.Application.Abstractions.Messaging.Commands;
+using Pivot.Framework.Application.Abstractions.Messaging.Commands;
 using Curvia.Application.Features.SavedRoutes.Commands.Save.Responses;
 
 namespace Curvia.Application.Features.SavedRoutes.Commands.Save;

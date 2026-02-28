@@ -1,9 +1,9 @@
-﻿using Templates.Core.Domain.Shared;
-using Templates.Core.Caching.Abstractions;
+﻿using Pivot.Framework.Domain.Shared;
+using Pivot.Framework.Infrastructure.Caching.Abstractions;
 using Curvia.Domain.Features.MotorcycleCatalog.Aggregates;
 using Curvia.Domain.Features.MotorcycleCatalog.Repositories;
 using Curvia.Application.Features.MotorcycleCatalogs.Responses;
-using Templates.Core.Application.Abstractions.Messaging.Queries;
+using Pivot.Framework.Application.Abstractions.Messaging.Queries;
 
 namespace Curvia.Application.Features.MotorcycleCatalogs.Queries.GetOfficialModels;
 

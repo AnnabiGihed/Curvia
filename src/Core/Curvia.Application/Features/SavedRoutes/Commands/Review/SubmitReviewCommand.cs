@@ -1,4 +1,4 @@
-﻿using Templates.Core.Application.Abstractions.Messaging.Commands;
+﻿using Pivot.Framework.Application.Abstractions.Messaging.Commands;
 using Curvia.Application.Features.SavedRoutes.Commands.Review.Responses;
 
 namespace Curvia.Application.Features.SavedRoutes.Commands.Review;

@@ -1,5 +1,5 @@
 ﻿using Microsoft.AspNetCore.Components;
-using Templates.Core.Authentication.Blazor.Services;
+using Pivot.Framework.Authentication.Blazor.Services;
 
 namespace Curvia.Web.App.Components.Layout;
 

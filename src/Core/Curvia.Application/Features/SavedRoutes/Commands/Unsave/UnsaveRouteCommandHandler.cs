@@ -1,8 +1,8 @@
 ﻿using Curvia.Domain.Features.SavedRoutes.Aggregate;
 using Curvia.Domain.Features.SavedRoutes.Repositories;
-using Templates.Core.Domain.Shared;
+using Pivot.Framework.Domain.Shared;
 using Curvia.Domain.Features.Users.Aggregate;
-using Templates.Core.Application.Abstractions.Messaging.Commands;
+using Pivot.Framework.Application.Abstractions.Messaging.Commands;
 
 namespace Curvia.Application.Features.SavedRoutes.Commands.Unsave;
 

@@ -5,7 +5,7 @@ using Curvia.Domain.Features.SavedRoutes.Aggregate;
 using Curvia.Domain.Features.Routing.Routes.Aggregate;
 using Curvia.Domain.Features.SavedRoutes.Repositories;
 using Curvia.Persistence.EntityFrameworkCore.PersistenceContext;
-using Templates.Core.Infrastructure.Persistence.EntityFrameworkCore.Repositories;
+using Pivot.Framework.Infrastructure.Persistence.EntityFrameworkCore.Repositories;
 
 namespace Curvia.Persistence.EntityFrameworkCore.Features.SavedRoutes.Repositories;
 

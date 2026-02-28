@@ -1,9 +1,9 @@
-﻿using Templates.Core.Domain.Shared;
+﻿using Pivot.Framework.Domain.Shared;
 using Curvia.Domain.Features.Users.Aggregate;
 using Curvia.Domain.Features.MotorcycleCatalog.Aggregates;
 using Curvia.Domain.Features.MotorcycleCatalog.Repositories;
 using Curvia.Application.Features.MotorcycleCatalogs.Responses;
-using Templates.Core.Application.Abstractions.Messaging.Commands;
+using Pivot.Framework.Application.Abstractions.Messaging.Commands;
 
 namespace Curvia.Application.Features.MotorcycleCatalogs.Commands.SuggestModel;
 

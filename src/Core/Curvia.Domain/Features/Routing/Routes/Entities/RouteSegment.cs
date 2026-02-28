@@ -1,8 +1,8 @@
 ﻿using Curvia.Domain.Features.Routing.Routes.Errors;
 using Curvia.Domain.Features.Routing.Routes.ValueObjects;
 using Curvia.Domain.Features.Routing.Shared;
-using Templates.Core.Domain.Primitives;
-using Templates.Core.Domain.Shared;
+using Pivot.Framework.Domain.Primitives;
+using Pivot.Framework.Domain.Shared;
 
 namespace Curvia.Domain.Features.Routing.Routes.Entities;
 

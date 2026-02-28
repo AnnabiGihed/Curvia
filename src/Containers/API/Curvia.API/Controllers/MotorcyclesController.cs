@@ -2,7 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Curvia.API.Middleware.Identity;
 using Microsoft.AspNetCore.Authorization;
-using Templates.Core.Containers.API.Abstractions;
+using Pivot.Framework.Containers.API.Abstractions;
 using Curvia.Application.Features.Motorcycles.Responses;
 using Curvia.Application.Features.Motorcycles.Commands.Add;
 using Curvia.Application.Features.Motorcycles.Commands.Update;

@@ -1,4 +1,4 @@
-﻿using Templates.Core.Application.Abstractions.Messaging.Queries;
+﻿using Pivot.Framework.Application.Abstractions.Messaging.Queries;
 using Curvia.Application.Features.Users.Queries.GetProfile.Responses;
 
 namespace Curvia.Application.Features.Users.Queries.GetProfile;

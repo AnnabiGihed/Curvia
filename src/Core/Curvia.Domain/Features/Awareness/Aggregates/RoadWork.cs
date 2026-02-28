@@ -1,5 +1,5 @@
-﻿using Templates.Core.Domain.Shared;
-using Templates.Core.Domain.Primitives;
+﻿using Pivot.Framework.Domain.Shared;
+using Pivot.Framework.Domain.Primitives;
 using Curvia.Domain.Features.Awareness.ValueObjects;
 
 namespace Curvia.Domain.Features.Awareness.Aggregates;

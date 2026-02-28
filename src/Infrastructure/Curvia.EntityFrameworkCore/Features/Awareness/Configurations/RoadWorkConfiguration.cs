@@ -59,6 +59,9 @@ internal sealed class RoadWorkConfiguration : IEntityTypeConfiguration<RoadWork>
 		{
 			pos.Property(p => p.Latitude).HasColumnName("Latitude").IsRequired().HasColumnType("float");
 			pos.Property(p => p.Longitude).HasColumnName("Longitude").IsRequired().HasColumnType("float");
+
+			pos.HasIndex(p => new { p.Latitude, p.Longitude })
+				.HasDatabaseName("IX_RoadWorks_Latitude_Longitude");
 		});
 		#endregion
 
@@ -104,9 +107,6 @@ internal sealed class RoadWorkConfiguration : IEntityTypeConfiguration<RoadWork>
 
 		builder.HasIndex("ExternalId", "Source", "CountryCode")
 			.HasDatabaseName("IX_RoadWorks_ExternalId_Source_CountryCode");
-
-		builder.HasIndex("Latitude", "Longitude")
-			.HasDatabaseName("IX_RoadWorks_Latitude_Longitude");
 
 		builder.HasIndex(x => x.ValidUntilUtc)
 			.HasDatabaseName("IX_RoadWorks_ValidUntilUtc");

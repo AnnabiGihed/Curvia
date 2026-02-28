@@ -1,7 +1,7 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
-using Templates.Core.Containers.API.Abstractions;
+using Pivot.Framework.Containers.API.Abstractions;
 using Curvia.Application.Features.Routes.Commands.Generate;
 using Curvia.Application.Features.Routes.Commands.ExportGpx;
 using Curvia.Application.Features.Routes.Commands.Generate.Responses;

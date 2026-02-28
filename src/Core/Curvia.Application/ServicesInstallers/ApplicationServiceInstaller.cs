@@ -2,10 +2,10 @@
 using FluentValidation;
 using System.Reflection;
 using Microsoft.Extensions.Configuration;
-using Templates.Core.Application.Behaviors;
+using Pivot.Framework.Application.Behaviors;
 using Microsoft.Extensions.DependencyInjection;
-using Templates.Core.Tools.DependencyInjection;
-using Templates.Core.Tools.DependencyInjection.Abstractions;
+using Pivot.Framework.Tools.DependencyInjection;
+using Pivot.Framework.Tools.DependencyInjection.Abstractions;
 
 
 namespace Curvia.Application.ServicesInstallers;

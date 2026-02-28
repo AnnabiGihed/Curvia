@@ -1,5 +1,5 @@
 ﻿using Curvia.Application.Features.MotorcycleCatalogs.Responses;
-using Templates.Core.Application.Abstractions.Messaging.Queries;
+using Pivot.Framework.Application.Abstractions.Messaging.Queries;
 
 namespace Curvia.Application.Features.MotorcycleCatalogs.Queries.GetOfficialModels;
 

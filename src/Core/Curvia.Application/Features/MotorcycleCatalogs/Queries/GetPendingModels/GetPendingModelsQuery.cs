@@ -1,4 +1,4 @@
-﻿using Templates.Core.Application.Abstractions.Messaging.Queries;
+﻿using Pivot.Framework.Application.Abstractions.Messaging.Queries;
 using Curvia.Application.Features.MotorcycleCatalogs.Responses;
 
 namespace Curvia.Application.Features.MotorcycleCatalogs.Queries.GetPendingModels;

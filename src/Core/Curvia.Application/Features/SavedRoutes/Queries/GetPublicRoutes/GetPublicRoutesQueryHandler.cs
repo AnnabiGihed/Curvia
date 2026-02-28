@@ -1,6 +1,6 @@
-﻿using Templates.Core.Domain.Shared;
+﻿using Pivot.Framework.Domain.Shared;
 using Curvia.Domain.Features.SavedRoutes.Repositories;
-using Templates.Core.Application.Abstractions.Messaging.Queries;
+using Pivot.Framework.Application.Abstractions.Messaging.Queries;
 using Curvia.Application.Features.Users.Queries.GetSavedRoutes.Responses;
 using Curvia.Application.Features.SavedRoutes.Queries.GetPublicRoutes.Responses;
 

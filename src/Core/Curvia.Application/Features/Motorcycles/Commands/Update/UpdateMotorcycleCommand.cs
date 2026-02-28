@@ -1,5 +1,5 @@
 ﻿using Curvia.Application.Features.Motorcycles.Responses;
-using Templates.Core.Application.Abstractions.Messaging.Commands;
+using Pivot.Framework.Application.Abstractions.Messaging.Commands;
 
 namespace Curvia.Application.Features.Motorcycles.Commands.Update;
 /// <summary>

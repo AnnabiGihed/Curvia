@@ -5,7 +5,7 @@ using Curvia.Domain.Features.Awareness.Enums;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Templates.Core.Containers.API.Abstractions;
+using Pivot.Framework.Containers.API.Abstractions;
 
 namespace Curvia.API.Controllers;
 

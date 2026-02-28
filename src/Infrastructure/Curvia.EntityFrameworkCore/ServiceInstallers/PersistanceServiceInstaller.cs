@@ -13,10 +13,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System.Reflection;
-using Templates.Core.Infrastructure.Abstraction.Transaction;
-using Templates.Core.Infrastructure.Persistence.EntityFrameworkCore.Transaction;
-using Templates.Core.Tools.DependencyInjection;
-using Templates.Core.Tools.DependencyInjection.Abstractions;
+using Pivot.Framework.Infrastructure.Abstraction.Transaction;
+using Pivot.Framework.Infrastructure.Persistence.EntityFrameworkCore.Transaction;
+using Pivot.Framework.Tools.DependencyInjection;
+using Pivot.Framework.Tools.DependencyInjection.Abstractions;
+using Curvia.Domain.Features.Routing.Routes.Repositories;
+using Curvia.Persistence.EntityFrameworkCore.Features.Routing.Routes.Repositories;
 
 namespace Curvia.Persistence.EntityFrameworkCore.ServiceInstallers;
 
@@ -52,6 +54,10 @@ public sealed class PersistanceServiceInstaller : BaseServiceInstaller, IService
 
 		#region Transaction
 		services.AddScoped(typeof(ITransactionManager<CurviaDbContext>), typeof(TransactionManager<CurviaDbContext>));
+		#endregion
+
+		#region Routing
+		services.AddScoped<IRouteRepository, RouteRepository>();
 		#endregion
 
 		#region Users & Motorcycles

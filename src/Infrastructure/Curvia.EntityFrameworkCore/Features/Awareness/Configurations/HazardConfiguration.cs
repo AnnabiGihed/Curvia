@@ -59,6 +59,9 @@ internal sealed class HazardConfiguration : IEntityTypeConfiguration<Hazard>
 		{
 			pos.Property(p => p.Latitude).HasColumnName("Latitude").IsRequired().HasColumnType("float");
 			pos.Property(p => p.Longitude).HasColumnName("Longitude").IsRequired().HasColumnType("float");
+
+			pos.HasIndex(p => new { p.Latitude, p.Longitude })
+				.HasDatabaseName("IX_Hazards_Latitude_Longitude");
 		});
 		#endregion
 
@@ -99,9 +102,6 @@ internal sealed class HazardConfiguration : IEntityTypeConfiguration<Hazard>
 
 		builder.HasIndex("ExternalId", "Source", "CountryCode")
 			.HasDatabaseName("IX_Hazards_ExternalId_Source_CountryCode");
-
-		builder.HasIndex("Latitude", "Longitude")
-			.HasDatabaseName("IX_Hazards_Latitude_Longitude");
 		#endregion
 	}
 }

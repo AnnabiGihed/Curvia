@@ -1,8 +1,8 @@
-﻿using Templates.Core.Domain.Shared;
+﻿using Pivot.Framework.Domain.Shared;
 using Curvia.Domain.Features.Users.Aggregate;
 using Curvia.Domain.Features.Motorcycles.Repositories;
 using Curvia.Application.Features.Motorcycles.Responses;
-using Templates.Core.Application.Abstractions.Messaging.Queries;
+using Pivot.Framework.Application.Abstractions.Messaging.Queries;
 
 namespace Curvia.Application.Features.Motorcycles.Queries.GetByUser;
 

@@ -1,4 +1,4 @@
-﻿using Templates.Core.Domain.Shared;
+﻿using Pivot.Framework.Domain.Shared;
 using Curvia.Domain.Features.Routing.Routes.Entities;
 using Curvia.Domain.Features.Routing.Routes.Aggregate;
 using Curvia.Domain.Features.Routing.Routes.ValueObjects;

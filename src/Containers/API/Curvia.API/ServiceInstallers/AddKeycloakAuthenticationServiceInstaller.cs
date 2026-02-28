@@ -1,7 +1,6 @@
 ﻿using System.Security.Claims;
-using Templates.Core.Caching.Extensions;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Templates.Core.Authentication.AspNetCore.Extensions;
+using Pivot.Framework.Authentication.Caching.Extensions;
 
 namespace Curvia.API.ServiceInstallers;
 
@@ -23,19 +22,11 @@ public static class AddKeycloakAuthenticationServiceInstaller
 	/// <param name="configuration">Application configuration.</param>
 	public static void AddKeycloakAuthentication(this IServiceCollection services, IConfiguration configuration)
 	{
-		services.AddKeycloakRedisCache(configuration);
-
+		services.AddKeycloakAuthenticationCaching(configuration, "Curvia API", "V1");
+		
 		services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
 		{
 			options.TokenValidationParameters.RoleClaimType = ClaimTypes.Role;
-		});
-
-		services.AddEndpointsApiExplorer();
-		services.AddSwaggerGen(c =>
-		{
-			c.SwaggerDoc("v1", new() { Title = "Curvia API", Version = "v1" });
-			c.AddKeycloakSecurityDefinition(services.BuildServiceProvider());
-			c.AddKeycloakSecurityRequirement();
 		});
 	}
 	#endregion

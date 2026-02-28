@@ -1,7 +1,7 @@
-﻿using Templates.Core.Domain.Shared;
+﻿using Pivot.Framework.Domain.Shared;
 using Curvia.Domain.Features.Users.Aggregate;
 using Curvia.Domain.Features.Users.Repositories;
-using Templates.Core.Application.Abstractions.Messaging.Queries;
+using Pivot.Framework.Application.Abstractions.Messaging.Queries;
 using Curvia.Application.Features.Users.Queries.GetProfile.Responses;
 
 namespace Curvia.Application.Features.Users.Queries.GetProfile;

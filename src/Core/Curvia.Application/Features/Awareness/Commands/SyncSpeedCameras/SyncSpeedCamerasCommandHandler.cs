@@ -1,11 +1,11 @@
 ﻿using Microsoft.Extensions.Logging;
-using Templates.Core.Domain.Shared;
+using Pivot.Framework.Domain.Shared;
 using Curvia.Domain.Features.Awareness.Enums;
 using Curvia.Domain.Features.Awareness.Aggregates;
 using Curvia.Domain.Features.Awareness.Repositories;
 using Curvia.Application.Features.Awareness.Contracts.Records;
 using Curvia.Application.Features.Awareness.Contracts.Providers;
-using Templates.Core.Application.Abstractions.Messaging.Commands;
+using Pivot.Framework.Application.Abstractions.Messaging.Commands;
 
 namespace Curvia.Application.Features.Awareness.Commands.SyncSpeedCameras;
 

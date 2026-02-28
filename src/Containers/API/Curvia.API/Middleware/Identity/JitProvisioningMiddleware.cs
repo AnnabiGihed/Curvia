@@ -1,6 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using Templates.Core.Domain.Primitives;
-using Templates.Core.Authentication.Models;
+using Pivot.Framework.Domain.Primitives;
+using Pivot.Framework.Authentication.Models;
 using Curvia.Domain.Features.Users.Aggregate;
 using Curvia.Domain.Features.Users.Repositories;
 using Curvia.Domain.Features.Users.ValueObjects;

@@ -1,10 +1,10 @@
 ﻿using MediatR;
-using Templates.Core.Domain.Shared;
+using Pivot.Framework.Domain.Shared;
 using Curvia.Domain.Features.Awareness.ValueObjects;
 using Curvia.Application.Features.Awareness.Responses;
 using Curvia.Domain.Features.Routing.Routes.Aggregate;
 using Curvia.Domain.Features.Routing.Routes.Repositories;
-using Templates.Core.Application.Abstractions.Messaging.Queries;
+using Pivot.Framework.Application.Abstractions.Messaging.Queries;
 using Curvia.Application.Features.Awareness.Queries.GetAwarenessForArea;
 
 namespace Curvia.Application.Features.Awareness.Queries.GetAwarenessForRoute;

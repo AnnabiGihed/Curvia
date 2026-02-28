@@ -1,4 +1,4 @@
-﻿using Templates.Core.Domain.Primitives;
+﻿using Pivot.Framework.Domain.Primitives;
 
 namespace Curvia.Domain.Features.Users.Aggregate;
 

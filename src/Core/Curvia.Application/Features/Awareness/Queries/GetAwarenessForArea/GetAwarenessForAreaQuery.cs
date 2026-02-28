@@ -1,6 +1,6 @@
 ﻿using Curvia.Domain.Features.Awareness.Enums;
 using Curvia.Application.Features.Awareness.Responses;
-using Templates.Core.Application.Abstractions.Messaging.Queries;
+using Pivot.Framework.Application.Abstractions.Messaging.Queries;
 
 namespace Curvia.Application.Features.Awareness.Queries.GetAwarenessForArea;
 

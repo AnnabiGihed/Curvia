@@ -1,7 +1,7 @@
-﻿using Templates.Core.Domain.Shared;
+﻿using Pivot.Framework.Domain.Shared;
 using Curvia.Domain.Features.MotorcycleCatalog.Repositories;
 using Curvia.Application.Features.MotorcycleCatalogs.Responses;
-using Templates.Core.Application.Abstractions.Messaging.Queries;
+using Pivot.Framework.Application.Abstractions.Messaging.Queries;
 
 namespace Curvia.Application.Features.MotorcycleCatalogs.Queries.GetPendingMakers;
 

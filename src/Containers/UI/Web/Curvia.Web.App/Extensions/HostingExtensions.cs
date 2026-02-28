@@ -1,7 +1,7 @@
 ﻿using Curvia.App.Shared.Middlewares;
 using Radzen;
 using System.Reflection;
-using Templates.Core.Tools.DependencyInjection.Abstractions;
+using Pivot.Framework.Tools.DependencyInjection.Abstractions;
 
 namespace Curvia.Web.App.Extensions;
 

@@ -1,8 +1,8 @@
 ﻿using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Templates.Core.Tools.DependencyInjection;
-using Templates.Core.Tools.DependencyInjection.Abstractions;
+using Pivot.Framework.Tools.DependencyInjection;
+using Pivot.Framework.Tools.DependencyInjection.Abstractions;
 using Curvia.Application.Features.Routes.Contracts.Services.Scoring;
 using Curvia.Infrastructure.Features.Routing.Routes.Engines.Valhalla;
 using Curvia.Infrastructure.Features.Routing.Routes.Services.Scoring;

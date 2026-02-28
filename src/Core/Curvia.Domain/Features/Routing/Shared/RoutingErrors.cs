@@ -1,5 +1,5 @@
 ﻿using System.Globalization;
-using Templates.Core.Domain.Shared;
+using Pivot.Framework.Domain.Shared;
 
 namespace Curvia.Domain.Features.Routing.Shared;
 

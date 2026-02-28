@@ -3,8 +3,8 @@ using System.Text.Json.Serialization;
 using Curvia.API.Middleware.Identity;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Authorization;
-using Templates.Core.Tools.DependencyInjection;
-using Templates.Core.Tools.DependencyInjection.Abstractions;
+using Pivot.Framework.Tools.DependencyInjection;
+using Pivot.Framework.Tools.DependencyInjection.Abstractions;
 
 namespace Curvia.API.ServiceInstallers;
 

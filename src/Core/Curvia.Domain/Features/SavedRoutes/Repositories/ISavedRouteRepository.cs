@@ -1,4 +1,4 @@
-﻿using Templates.Core.Domain.Repositories;
+﻿using Pivot.Framework.Domain.Repositories;
 using Curvia.Domain.Features.Users.Aggregate;
 using Curvia.Domain.Features.SavedRoutes.Aggregate;
 using Curvia.Domain.Features.Routing.Routes.Aggregate;

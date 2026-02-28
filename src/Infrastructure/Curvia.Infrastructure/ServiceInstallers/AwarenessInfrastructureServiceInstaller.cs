@@ -1,8 +1,8 @@
 ﻿using Curvia.Infrastructure.Jobs;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Templates.Core.Infrastructure.Scheduling.Extensions;
-using Templates.Core.Tools.DependencyInjection.Abstractions;
+using Pivot.Framework.Infrastructure.Scheduling.Extensions;
+using Pivot.Framework.Tools.DependencyInjection.Abstractions;
 using Curvia.Infrastructure.Features.Awareness.Providers.Osm;
 using Curvia.Application.Features.Awareness.Contracts.Providers;
 using Curvia.Infrastructure.Features.Awareness.Providers.Incidents;
@@ -18,7 +18,7 @@ namespace Curvia.Infrastructure.ServiceInstallers;
 /// Purpose     : Registers all awareness-related infrastructure services with the DI container.
 ///              Configures named HTTP clients with per-provider timeout tuning, registers
 ///              all data providers by their interface contracts, registers the cleanup job,
-///              and sets up Hangfire (storage + server) via Templates.Core.Infrastructure.Scheduling
+///              and sets up Hangfire (storage + server) via Pivot.Framework.Infrastructure.Scheduling
 ///              so that recurring sync jobs can be scheduled at pipeline startup.
 /// </summary>
 public sealed class AwarenessInfrastructureServiceInstaller : IServiceInstaller
@@ -36,7 +36,7 @@ public sealed class AwarenessInfrastructureServiceInstaller : IServiceInstaller
 		services.Configure<AwarenessSyncOptions>(configuration.GetSection(AwarenessSyncOptions.SectionName));
 		#endregion
 
-		#region Hangfire — storage + server (via Templates.Core.Infrastructure.Scheduling)
+		#region Hangfire — storage + server (via Pivot.Framework.Infrastructure.Scheduling)
 		// Uses the "HangfireConnection" connection string from appsettings.
 		// AddHangfireWithDashboard registers AddHangfire (SQL Server storage) + AddHangfireServer.
 		// The dashboard middleware is mounted separately in HostingExtensions.ConfigurePipeline

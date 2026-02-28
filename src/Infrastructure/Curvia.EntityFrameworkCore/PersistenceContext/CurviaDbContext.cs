@@ -1,6 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
-using Templates.Core.Infrastructure.Persistence.EntityFrameworkCore.PersistenceContext;
+using Pivot.Framework.Infrastructure.Persistence.EntityFrameworkCore.PersistenceContext;
 
 namespace Curvia.Persistence.EntityFrameworkCore.PersistenceContext;
 

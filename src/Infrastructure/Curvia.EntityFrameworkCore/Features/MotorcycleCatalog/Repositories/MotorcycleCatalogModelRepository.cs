@@ -3,7 +3,7 @@ using Curvia.Domain.Features.MotorcycleCatalog.Enums;
 using Curvia.Domain.Features.MotorcycleCatalog.Aggregates;
 using Curvia.Domain.Features.MotorcycleCatalog.Repositories;
 using Curvia.Persistence.EntityFrameworkCore.PersistenceContext;
-using Templates.Core.Infrastructure.Persistence.EntityFrameworkCore.Repositories;
+using Pivot.Framework.Infrastructure.Persistence.EntityFrameworkCore.Repositories;
 
 namespace Curvia.Persistence.EntityFrameworkCore.Features.MotorcycleCatalog.Repositories;
 

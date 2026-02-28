@@ -3,7 +3,7 @@ using Curvia.Domain.Features.Users.Aggregate;
 using Curvia.Domain.Features.Users.Repositories;
 using Curvia.Domain.Features.Users.ValueObjects;
 using Curvia.Persistence.EntityFrameworkCore.PersistenceContext;
-using Templates.Core.Infrastructure.Persistence.EntityFrameworkCore.Repositories;
+using Pivot.Framework.Infrastructure.Persistence.EntityFrameworkCore.Repositories;
 
 namespace Curvia.Persistence.EntityFrameworkCore.Features.Users.Repositories;
 

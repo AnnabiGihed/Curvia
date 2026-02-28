@@ -1,9 +1,9 @@
-﻿using Templates.Core.Domain.Shared;
+﻿using Pivot.Framework.Domain.Shared;
 using Curvia.Domain.Features.Users.Aggregate;
 using Curvia.Domain.Features.Motorcycles.Aggregates;
 using Curvia.Domain.Features.Motorcycles.Repositories;
 using Curvia.Application.Features.Motorcycles.Responses;
-using Templates.Core.Application.Abstractions.Messaging.Commands;
+using Pivot.Framework.Application.Abstractions.Messaging.Commands;
 
 namespace Curvia.Application.Features.Motorcycles.Commands.Update;
 
