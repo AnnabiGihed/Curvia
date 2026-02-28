@@ -67,7 +67,7 @@ public sealed class AwarenessInfrastructureServiceInstaller : IServiceInstaller
 
 		services.AddHttpClient<OpenSpeedCamProvider>(c =>
 		{
-			c.Timeout = TimeSpan.FromSeconds(60);
+			c.Timeout = TimeSpan.FromSeconds(120);
 		});
 
 		services.AddHttpClient<GipodRoadWorkProvider>(c =>

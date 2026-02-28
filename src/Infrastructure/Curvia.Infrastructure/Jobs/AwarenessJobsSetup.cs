@@ -55,7 +55,7 @@ public static class AwarenessJobsSetup
 			RecurringJob.AddOrUpdate<SpeedCameraSyncJob>(
 				$"sync-speed-cameras-{cc.ToLower()}",
 				job => job.RunAsync(cc, CancellationToken.None),
-				"*/3 * * * *");
+				"0 2 * * 0");
 		}
 		#endregion
 
