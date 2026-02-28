@@ -1,24 +1,31 @@
 ﻿using Curvia.Domain.Features.Awareness.Repositories;
 using Curvia.Domain.Features.MotorcycleCatalog.Repositories;
 using Curvia.Domain.Features.Motorcycles.Repositories;
+using Curvia.Domain.Features.Routing.Routes.Repositories;
 using Curvia.Domain.Features.SavedRoutes.Repositories;
 using Curvia.Domain.Features.Users.Repositories;
 using Curvia.Persistence.EntityFrameworkCore.Features.Awareness.Repositories;
 using Curvia.Persistence.EntityFrameworkCore.Features.MotorcycleCatalog.Repositories;
 using Curvia.Persistence.EntityFrameworkCore.Features.Motorcycles.Repositories;
+using Curvia.Persistence.EntityFrameworkCore.Features.Routing.Routes.Repositories;
 using Curvia.Persistence.EntityFrameworkCore.Features.SavedRoutes.Repositories;
 using Curvia.Persistence.EntityFrameworkCore.Features.Users.Repositories;
 using Curvia.Persistence.EntityFrameworkCore.PersistenceContext;
+using Curvia.Persistence.EntityFrameworkCore.UnitOfWork;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using System.Reflection;
+using Pivot.Framework.Domain.Repositories;
+using Pivot.Framework.Infrastructure.Abstraction.Outbox.DomainEventPublisher;
+using Pivot.Framework.Infrastructure.Abstraction.Outbox.Repositories;
 using Pivot.Framework.Infrastructure.Abstraction.Transaction;
+using Pivot.Framework.Infrastructure.Abstraction.UnitOfWork;
+using Pivot.Framework.Infrastructure.Persistence.EntityFrameworkCore.Outbox.Publisher;
+using Pivot.Framework.Infrastructure.Persistence.EntityFrameworkCore.Outbox.Repositories;
 using Pivot.Framework.Infrastructure.Persistence.EntityFrameworkCore.Transaction;
 using Pivot.Framework.Tools.DependencyInjection;
 using Pivot.Framework.Tools.DependencyInjection.Abstractions;
-using Curvia.Domain.Features.Routing.Routes.Repositories;
-using Curvia.Persistence.EntityFrameworkCore.Features.Routing.Routes.Repositories;
+using System.Reflection;
 
 namespace Curvia.Persistence.EntityFrameworkCore.ServiceInstallers;
 
@@ -28,19 +35,15 @@ namespace Curvia.Persistence.EntityFrameworkCore.ServiceInstallers;
 /// Purpose     : Registers Curvia persistence infrastructure into the DI container.
 ///              This installer:
 ///              - Optionally applies convention-based registrations for the persistence assembly
-///              - Registers <see cref="CurviaDbContext"/> with SQL Server using the configured connection string
+///              - Registers CurviaDbContext with SQL Server using the configured connection string
+///              - Registers the outbox stack: IOutboxRepository + IDomainEventPublisher
+///                (both are generic classes — Scrutor skips them, so they must be explicit)
+///              - Registers IUnitOfWork&lt;CurviaDbContext&gt; → CurviaUnitOfWork
 ///              - Registers the transaction manager implementation for EF Core
-///              - Registers repository implementations for Users, Motorcycles, Saved Routes and Motorcycle Catalog
+///              - Registers repository implementations for all features
 /// </summary>
 public sealed class PersistanceServiceInstaller : BaseServiceInstaller, IServiceInstaller
 {
-	#region Public Methods
-	/// <summary>
-	/// Registers persistence-related services into the DI container.
-	/// </summary>
-	/// <param name="services">The DI service collection.</param>
-	/// <param name="configuration">Application configuration used to resolve connection strings and settings.</param>
-	/// <param name="includeConventionBasedRegistration">When true, also includes convention-based registrations for the persistence assembly.</param>
 	public void Install(IServiceCollection services, IConfiguration configuration, bool includeConventionBasedRegistration = true)
 	{
 		if (includeConventionBasedRegistration)
@@ -50,6 +53,21 @@ public sealed class PersistanceServiceInstaller : BaseServiceInstaller, IService
 
 		#region DbContext
 		services.AddDbContext<CurviaDbContext>(options => options.UseSqlServer(configuration.GetConnectionString($"{nameof(CurviaDbContext)}ConnectionString")));
+		#endregion
+
+		#region Outbox
+		// Generic classes are excluded by Scrutor (ContainsGenericParameters filter), so these must be explicit.
+		// OutboxRepository<CurviaDbContext> is required by DomainEventPublisher<CurviaDbContext>.
+		// DomainEventPublisher<CurviaDbContext> is required by CurviaUnitOfWork.
+		services.AddScoped<IOutboxRepository<CurviaDbContext>, OutboxRepository<CurviaDbContext>>();
+		services.AddScoped<IDomainEventPublisher, DomainEventPublisher<CurviaDbContext>>();
+		#endregion
+
+		#region Unit of Work
+		services.AddScoped<IUnitOfWork<CurviaDbContext>, CurviaUnitOfWork>();
+		// Forward the non-generic IUnitOfWork (used by Application layer handlers) to the
+		// already-registered scoped CurviaUnitOfWork — no second instance is created.
+		services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<IUnitOfWork<CurviaDbContext>>());
 		#endregion
 
 		#region Transaction
@@ -81,5 +99,4 @@ public sealed class PersistanceServiceInstaller : BaseServiceInstaller, IService
 		services.AddScoped<ISpeedCameraRepository, SpeedCameraRepository>();
 		#endregion
 	}
-	#endregion
 }

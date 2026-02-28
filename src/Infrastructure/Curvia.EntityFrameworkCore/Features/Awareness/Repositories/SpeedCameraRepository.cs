@@ -2,6 +2,7 @@
 using Curvia.Domain.Shared.ValueObjects;
 using Curvia.Domain.Features.Awareness.Aggregates;
 using Curvia.Domain.Features.Awareness.Repositories;
+using Curvia.Domain.Features.Awareness.ValueObjects;
 using Curvia.Persistence.EntityFrameworkCore.PersistenceContext;
 using Pivot.Framework.Infrastructure.Persistence.EntityFrameworkCore.Repositories;
 
@@ -46,11 +47,20 @@ internal sealed class SpeedCameraRepository : BaseAsyncCommandRepository<SpeedCa
 	/// <inheritdoc/>
 	public async Task<SpeedCamera?> FindByExternalIdAsync(string externalId, string source, string countryCode, CancellationToken ct = default)
 	{
+		// Construct value objects from raw strings so EF Core can apply the registered HasConversion
+		// converter on the parameter side and generate a correctly parameterized WHERE clause.
+		// Accessing .Value directly inside a LINQ predicate (e.g. c.ExternalId.Value == externalId)
+		// is not translatable — EF cannot traverse into the CLR property through the expression tree.
+		// Passing the value object itself lets EF use its converter to produce the scalar SQL parameter.
+		var externalIdVo = ExternalId.FromPersistence(externalId);
+		var sourceVo = SourceName.FromPersistence(source);
+		var countryCodeVo = AwarenessCountryCode.FromPersistence(countryCode);
+
 		return await DbContext.Set<SpeedCamera>()
 			.FirstOrDefaultAsync(c =>
-				c.ExternalId.Value == externalId &&
-				c.Source.Value == source &&
-				c.CountryCode.Value == countryCode, ct);
+				c.ExternalId == externalIdVo &&
+				c.Source == sourceVo &&
+				c.CountryCode == countryCodeVo, ct);
 	}
 
 	/// <inheritdoc/>
@@ -60,10 +70,7 @@ internal sealed class SpeedCameraRepository : BaseAsyncCommandRepository<SpeedCa
 		// in the translated query which SQL Server cannot execute as a bulk DELETE statement.
 		// Raw SQL targets the scalar columns directly, bypassing owned entity navigation.
 		// ct is passed as a named argument to avoid it being captured into the params object[] array.
-		await DbContext.Database.ExecuteSqlRawAsync(
-			"DELETE FROM [SpeedCameras] WHERE [Source] = {0} AND [CountryCode] = {1}",
-			parameters: new object[] { source, countryCode },
-			cancellationToken: ct);
+		await DbContext.Database.ExecuteSqlRawAsync("DELETE FROM SpeedCameras WHERE Source = {0} AND CountryCode = {1}", cancellationToken: ct, parameters: [source, countryCode]);
 	}
 	#endregion
 }

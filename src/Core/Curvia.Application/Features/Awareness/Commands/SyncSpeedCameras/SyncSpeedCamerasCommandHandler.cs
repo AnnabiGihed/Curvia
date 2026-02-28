@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using Pivot.Framework.Domain.Shared;
+using Pivot.Framework.Domain.Repositories;
 using Curvia.Domain.Features.Awareness.Aggregates;
 using Curvia.Domain.Features.Awareness.Repositories;
 using Curvia.Application.Features.Awareness.Contracts.Records;
@@ -17,6 +18,10 @@ namespace Curvia.Application.Features.Awareness.Commands.SyncSpeedCameras;
 ///              sources that are within 50 m of each other, deletes existing data per source,
 ///              then upserts the deduplicated dataset.
 ///              Runs weekly per country — speed camera locations change infrequently.
+///
+///              A single SaveChangesAsync is called at the end of the pipeline so that
+///              the entire sync for a country (deletes + inserts + updates) is committed
+///              atomically in one round-trip.
 ///
 ///              Returns Result.Failure when one or more providers fail so that Hangfire marks
 ///              the per-country job as failed and retries it automatically.
@@ -38,6 +43,9 @@ internal sealed class SyncSpeedCamerasCommandHandler : ICommandHandler<SyncSpeed
 	/// <summary>Persistence contract for <see cref="SpeedCamera"/> aggregates.</summary>
 	private readonly ISpeedCameraRepository _repository;
 
+	/// <summary>Commits all pending changes atomically: auditing + outbox + SaveChanges.</summary>
+	private readonly IUnitOfWork _unitOfWork;
+
 	/// <summary>Logger for this handler.</summary>
 	private readonly ILogger<SyncSpeedCamerasCommandHandler> _logger;
 	#endregion
@@ -48,11 +56,13 @@ internal sealed class SyncSpeedCamerasCommandHandler : ICommandHandler<SyncSpeed
 	/// </summary>
 	/// <param name="providers">All registered speed-camera data providers.</param>
 	/// <param name="repository">Persistence contract for speed-camera aggregates.</param>
+	/// <param name="unitOfWork">Unit of work used to commit the sync atomically.</param>
 	/// <param name="logger">Logger instance.</param>
-	public SyncSpeedCamerasCommandHandler(IEnumerable<ISpeedCameraDataProvider> providers, ISpeedCameraRepository repository, ILogger<SyncSpeedCamerasCommandHandler> logger)
+	public SyncSpeedCamerasCommandHandler(IEnumerable<ISpeedCameraDataProvider> providers, ISpeedCameraRepository repository, IUnitOfWork unitOfWork, ILogger<SyncSpeedCamerasCommandHandler> logger)
 	{
 		_providers = providers ?? throw new ArgumentNullException(nameof(providers));
 		_repository = repository ?? throw new ArgumentNullException(nameof(repository));
+		_unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}
 	#endregion
@@ -108,7 +118,6 @@ internal sealed class SyncSpeedCamerasCommandHandler : ICommandHandler<SyncSpeed
 			}
 			else
 			{
-				// Sync() now returns Result — log and skip on failure (invalid coordinates from source).
 				var syncResult = existing.Sync(record.Latitude, record.Longitude, record.SpeedLimitKmh, record.Direction);
 				if (syncResult.IsFailure)
 				{
@@ -120,6 +129,11 @@ internal sealed class SyncSpeedCamerasCommandHandler : ICommandHandler<SyncSpeed
 				updated++;
 			}
 		}
+
+		// Single commit for the entire country sync — all deletes, inserts and updates in one atomic round-trip.
+		var saveResult = await _unitOfWork.SaveChangesAsync(ct);
+		if (saveResult.IsFailure)
+			return saveResult;
 
 		_logger.LogInformation("Speed-camera sync for {Country} complete: {Inserted} inserted, {Updated} updated, {Skipped} skipped.", country, inserted, updated, skipped);
 
@@ -142,8 +156,7 @@ internal sealed class SyncSpeedCamerasCommandHandler : ICommandHandler<SyncSpeed
 	/// A tuple of: the flat list of all records from successful providers,
 	/// a flag indicating whether any provider failed, and the list of failed provider names.
 	/// </returns>
-	private async Task<(List<SpeedCameraRecord> Records, bool HadFailure, List<string> FailedProviders)>
-		FetchFromAllProvidersAsync(string country, CancellationToken ct)
+	private async Task<(List<SpeedCameraRecord> Records, bool HadFailure, List<string> FailedProviders)> FetchFromAllProvidersAsync(string country, CancellationToken ct)
 	{
 		var failedProviders = new List<string>();
 
@@ -181,33 +194,30 @@ internal sealed class SyncSpeedCamerasCommandHandler : ICommandHandler<SyncSpeed
 	{
 		var kept = new List<SpeedCameraRecord>();
 
-		foreach (var record in records)
+		foreach (var candidate in records)
 		{
 			var isDuplicate = kept.Any(k =>
-				k.Source != record.Source &&
-				Haversine(k.Latitude, k.Longitude, record.Latitude, record.Longitude) <= DeduplicationDistanceMeters);
+				k.Source != candidate.Source &&
+				HaversineMeters(k.Latitude, k.Longitude, candidate.Latitude, candidate.Longitude) <= DeduplicationDistanceMeters);
 
 			if (!isDuplicate)
-				kept.Add(record);
+				kept.Add(candidate);
 		}
 
 		return kept;
 	}
 
 	/// <summary>
-	/// Computes the Haversine distance in metres between two WGS84 coordinates.
+	/// Computes the great-circle distance in metres between two WGS84 coordinates using the Haversine formula.
 	/// </summary>
-	/// <param name="lat1">Latitude of the first point.</param>
-	/// <param name="lon1">Longitude of the first point.</param>
-	/// <param name="lat2">Latitude of the second point.</param>
-	/// <param name="lon2">Longitude of the second point.</param>
-	/// <returns>Distance in metres.</returns>
-	private static double Haversine(double lat1, double lon1, double lat2, double lon2)
+	private static double HaversineMeters(double lat1, double lon1, double lat2, double lon2)
 	{
-		var dLat = (lat2 - lat1) * Math.PI / 180.0;
-		var dLon = (lon2 - lon1) * Math.PI / 180.0;
-		var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) + Math.Cos(lat1 * Math.PI / 180.0) * Math.Cos(lat2 * Math.PI / 180.0) * Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
+		var dLat = ToRad(lat2 - lat1);
+		var dLon = ToRad(lon2 - lon1);
+		var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) + Math.Cos(ToRad(lat1)) * Math.Cos(ToRad(lat2)) * Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
 		return EarthRadiusMeters * 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
 	}
+
+	private static double ToRad(double degrees) => degrees * Math.PI / 180.0;
 	#endregion
 }
