@@ -71,29 +71,28 @@ public static class AwarenessJobsSetup
 		//}
 		//#endregion
 
-		#region Road works — every 4 hours per country
+		//#region Road works — every 4 hours per country
+		//foreach (var countryCode in CountryBoundingBoxes.AllCountryCodes)
+		//{
+		//	var cc = countryCode;
+		//	RecurringJob.AddOrUpdate<RoadWorkSyncJob>(
+		//		$"sync-roadworks-{cc.ToLower()}",
+		//		job => job.RunAsync(cc, CancellationToken.None),
+		//		"0 */4 * * *");
+		//}
+		//#endregion
+
+		#region Incidents — every 3 minutes per country
 		foreach (var countryCode in CountryBoundingBoxes.AllCountryCodes)
 		{
 			var cc = countryCode;
 
-			RecurringJob.AddOrUpdate<RoadWorkSyncJob>(
-				$"sync-roadworks-{cc.ToLower()}",
+			RecurringJob.AddOrUpdate<IncidentSyncJob>(
+				$"sync-incidents-{cc.ToLower()}",
 				job => job.RunAsync(cc, CancellationToken.None),
 				"*/3 * * * *");
 		}
 		#endregion
-
-		//#region Incidents — every 3 minutes per country
-		//foreach (var countryCode in CountryBoundingBoxes.AllCountryCodes)
-		//{
-		//	var cc = countryCode;
-
-		//	RecurringJob.AddOrUpdate<IncidentSyncJob>(
-		//		$"sync-incidents-{cc.ToLower()}",
-		//		job => job.RunAsync(cc, CancellationToken.None),
-		//		"*/3 * * * *");
-		//}
-		//#endregion
 
 		#region Cleanup — expired road works + incidents, hourly
 		RecurringJob.AddOrUpdate(

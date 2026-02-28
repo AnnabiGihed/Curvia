@@ -23,10 +23,32 @@ namespace Curvia.Infrastructure.Features.Awareness.Providers.RoadWorks;
 ///              Validity period: if no date tags are present, a 30-day window from
 ///              the current date is assumed as a conservative estimate.
 ///
+///              Resilience: the public Overpass API (overpass-api.de) can return 504
+///              under heavy load. Up to <see cref="MaxAttempts"/> attempts are made with
+///              exponential back-off. If all attempts against the primary endpoint fail,
+///              the query is retried against a secondary mirror endpoint before giving up.
+///
 ///              ExternalId format: "osm:way{id}" or "osm:node{id}"
 /// </summary>
 public sealed class OsmRoadWorkProvider : IRoadWorkDataProvider
 {
+	#region Constants
+	/// <summary>Primary Overpass API endpoint.</summary>
+	private const string PrimaryEndpoint = "https://overpass-api.de/api/interpreter";
+
+	/// <summary>
+	/// Secondary Overpass mirror used when the primary endpoint returns repeated 504s.
+	/// overpass.kumi.systems is a well-maintained public mirror.
+	/// </summary>
+	private const string FallbackEndpoint = "https://overpass.kumi.systems/api/interpreter";
+
+	/// <summary>Number of attempts per endpoint before falling over to the next.</summary>
+	private const int MaxAttempts = 3;
+
+	/// <summary>Base delay in milliseconds for exponential back-off between retries.</summary>
+	private const int BaseRetryDelayMs = 2000;
+	#endregion
+
 	#region Properties
 	/// <summary>Short provider identifier used as the Source on persisted aggregates.</summary>
 	public string ProviderName => "osm";
@@ -39,7 +61,7 @@ public sealed class OsmRoadWorkProvider : IRoadWorkDataProvider
 	/// <summary>HttpClient configured for the Overpass API.</summary>
 	private readonly HttpClient _httpClient;
 
-	/// <summary>Logger for fetch lifecycle and error events.</summary>
+	/// <summary>Logger for fetch lifecycle events.</summary>
 	private readonly ILogger<OsmRoadWorkProvider> _logger;
 	#endregion
 
@@ -59,8 +81,10 @@ public sealed class OsmRoadWorkProvider : IRoadWorkDataProvider
 	#region IRoadWorkDataProvider
 	/// <summary>
 	/// Fetches road works from the Overpass API for the given country.
-	/// Logs the error and re-throws on any network or HTTP failure so that the sync handler
-	/// can mark this provider as failed rather than silently returning zero records.
+	/// Attempts the primary endpoint up to <see cref="MaxAttempts"/> times with exponential
+	/// back-off, then falls over to the secondary mirror if all primary attempts fail.
+	/// Re-throws if all endpoints and all attempts are exhausted — error logging is owned
+	/// by the caller's resilience layer which has full provider + country context.
 	/// </summary>
 	/// <param name="countryCode">ISO 3166-1 alpha-2 country code.</param>
 	/// <param name="ct">Cancellation token.</param>
@@ -78,35 +102,87 @@ public sealed class OsmRoadWorkProvider : IRoadWorkDataProvider
 		// "out center body" is required so that ways receive a "center" property
 		// with their centroid lat/lon — without it ways silently have no coordinates
 		// and are dropped by the parser.
-		var query = $@"[out:json][timeout:90];
+		var query = $@"[out:json][timeout:120];
 (
   way[""highway""=""construction""]({bb});
   node[""construction""]({bb});
 )->.r;
 .r out center body;";
 
-		var url = $"https://overpass-api.de/api/interpreter?data={Uri.EscapeDataString(query)}";
-
 		_logger.LogInformation("Fetching OSM road works for {CountryCode}.", countryCode);
 
-		HttpResponseMessage response;
-		try
+		var endpoints = new[] { PrimaryEndpoint, FallbackEndpoint };
+
+		foreach (var endpoint in endpoints)
 		{
-			response = await _httpClient.GetAsync(url, ct);
-			response.EnsureSuccessStatusCode();
-		}
-		catch (Exception ex)
-		{
-			_logger.LogError(ex, "Overpass API request failed for road works ({CountryCode}).", countryCode);
-			throw;
+			var result = await TryFetchFromEndpointAsync(endpoint, query, countryCode, ct);
+			if (result is not null)
+				return result;
 		}
 
-		var json = await response.Content.ReadAsStringAsync(ct);
-		return ParseResponse(json);
+		// All endpoints and all attempts exhausted — let the exception propagate so
+		// FetchFromApplicableProvidersAsync marks this provider as failed.
+		throw new HttpRequestException($"OSM road works fetch failed for {countryCode}: all Overpass endpoints exhausted after {MaxAttempts} attempts each.");
 	}
 	#endregion
 
-	#region Parsing
+	#region Private helpers
+	/// <summary>
+	/// Attempts to fetch road works from a single Overpass endpoint with exponential back-off.
+	/// Returns null when all attempts for this endpoint fail, so the caller can try the next endpoint.
+	/// </summary>
+	/// <param name="endpoint">Overpass API base URL (primary or mirror).</param>
+	/// <param name="query">Overpass QL query string.</param>
+	/// <param name="countryCode">Country code used for log context only.</param>
+	/// <param name="ct">Cancellation token.</param>
+	/// <returns>Parsed records on success, or null if all attempts against this endpoint failed.</returns>
+	private async Task<IReadOnlyList<RoadWorkRecord>?> TryFetchFromEndpointAsync(string endpoint, string query, string countryCode, CancellationToken ct)
+	{
+		var url = $"{endpoint}?data={Uri.EscapeDataString(query)}";
+
+		for (var attempt = 1; attempt <= MaxAttempts; attempt++)
+		{
+			try
+			{
+				var response = await _httpClient.GetAsync(url, ct);
+				response.EnsureSuccessStatusCode();
+
+				var json = await response.Content.ReadAsStringAsync(ct);
+				return ParseResponse(json);
+			}
+			catch (HttpRequestException ex) when (IsTransient(ex))
+			{
+				if (attempt == MaxAttempts)
+				{
+					_logger.LogWarning("OSM road works for {CountryCode}: endpoint {Endpoint} failed after {Attempts} attempts ({Error}). Trying next endpoint.",
+						countryCode, endpoint, MaxAttempts, ex.Message);
+					return null;
+				}
+
+				var delay = BaseRetryDelayMs * (int)Math.Pow(2, attempt - 1); // 2s, 4s, 8s
+				_logger.LogWarning("OSM road works for {CountryCode}: attempt {Attempt}/{Max} against {Endpoint} failed ({Error}). Retrying in {Delay}ms.",
+					countryCode, attempt, MaxAttempts, endpoint, ex.Message, delay);
+
+				await Task.Delay(delay, ct);
+			}
+		}
+
+		return null;
+	}
+
+	/// <summary>
+	/// Returns true for HTTP status codes that represent a transient server-side failure
+	/// and are worth retrying: 429 Too Many Requests, 503 Service Unavailable, 504 Gateway Timeout.
+	/// </summary>
+	/// <param name="ex">The HttpRequestException to inspect.</param>
+	/// <returns>True when the error is considered transient.</returns>
+	private static bool IsTransient(HttpRequestException ex)
+	{
+		return ex.StatusCode is System.Net.HttpStatusCode.TooManyRequests
+			or System.Net.HttpStatusCode.ServiceUnavailable
+			or System.Net.HttpStatusCode.GatewayTimeout;
+	}
+
 	/// <summary>
 	/// Parses the Overpass JSON response into road-work records.
 	/// </summary>
