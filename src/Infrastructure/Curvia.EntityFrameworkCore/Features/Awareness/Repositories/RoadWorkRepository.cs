@@ -1,7 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Curvia.Domain.Shared.ValueObjects;
 using Curvia.Domain.Features.Awareness.Aggregates;
 using Curvia.Domain.Features.Awareness.Repositories;
-using Curvia.Domain.Features.Awareness.ValueObjects;
 using Curvia.Persistence.EntityFrameworkCore.PersistenceContext;
 using Pivot.Framework.Infrastructure.Persistence.EntityFrameworkCore.Repositories;
 

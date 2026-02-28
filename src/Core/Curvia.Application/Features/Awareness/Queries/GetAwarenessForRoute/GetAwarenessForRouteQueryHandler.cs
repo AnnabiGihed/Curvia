@@ -1,6 +1,6 @@
 ﻿using MediatR;
 using Pivot.Framework.Domain.Shared;
-using Curvia.Domain.Features.Awareness.ValueObjects;
+using Curvia.Domain.Shared.ValueObjects;
 using Curvia.Application.Features.Awareness.Responses;
 using Curvia.Domain.Features.Routing.Routes.Aggregate;
 using Curvia.Domain.Features.Routing.Routes.Repositories;

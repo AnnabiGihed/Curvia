@@ -1,4 +1,4 @@
-﻿using Curvia.Domain.Features.Awareness.ValueObjects;
+﻿using Curvia.Domain.Shared.ValueObjects;
 
 namespace Curvia.Infrastructure.Features.Awareness.Providers.Osm;
 

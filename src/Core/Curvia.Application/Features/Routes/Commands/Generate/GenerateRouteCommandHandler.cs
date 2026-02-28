@@ -344,7 +344,7 @@ internal sealed class GenerateRouteCommandHandler : ICommandHandler<GenerateRout
 			FunRating = ComputeFunRating(score),
 			DistanceMeters = route.Stats.Distance.Meters,
 			EstimatedDurationMinutes = (int)Math.Round((route.Stats.EstimatedDuration?.Seconds ?? 0) / 60.0),
-			BoundingBox = new BoundingBoxDto(route.BoundingBox.MinLatitude, route.BoundingBox.MinLongitude, route.BoundingBox.MaxLatitude, route.BoundingBox.MaxLongitude),
+			BoundingBox = new BoundingBoxDto(route.BoundingBox.South, route.BoundingBox.West, route.BoundingBox.North, route.BoundingBox.East),
 			Polyline = route.Geometry.Points.Select(p => new double[] { p.Latitude, p.Longitude }).ToList(),
 			ReturnLeg = returnLeg
 		};
@@ -364,7 +364,7 @@ internal sealed class GenerateRouteCommandHandler : ICommandHandler<GenerateRout
 			FunRating = ComputeFunRating(score),
 			DistanceMeters = route.Stats.Distance.Meters,
 			EstimatedDurationMinutes = (int)Math.Round((route.Stats.EstimatedDuration?.Seconds ?? 0) / 60.0),
-			BoundingBox = new BoundingBoxDto(route.BoundingBox.MinLatitude, route.BoundingBox.MinLongitude, route.BoundingBox.MaxLatitude, route.BoundingBox.MaxLongitude),
+			BoundingBox = new BoundingBoxDto(route.BoundingBox.South, route.BoundingBox.West, route.BoundingBox.North, route.BoundingBox.East),
 			Polyline = route.Geometry.Points.Select(p => new double[] { p.Latitude, p.Longitude }).ToList()
 		};
 	}

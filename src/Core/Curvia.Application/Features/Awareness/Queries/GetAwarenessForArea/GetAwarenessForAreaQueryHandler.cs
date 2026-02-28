@@ -1,10 +1,10 @@
-﻿using Curvia.Application.Features.Awareness.Responses;
-using Curvia.Domain.Features.Awareness.Aggregates;
+﻿using Pivot.Framework.Domain.Shared;
+using Curvia.Domain.Shared.ValueObjects;
 using Curvia.Domain.Features.Awareness.Enums;
+using Curvia.Domain.Features.Awareness.Aggregates;
 using Curvia.Domain.Features.Awareness.Repositories;
-using Curvia.Domain.Features.Awareness.ValueObjects;
+using Curvia.Application.Features.Awareness.Responses;
 using Pivot.Framework.Application.Abstractions.Messaging.Queries;
-using Pivot.Framework.Domain.Shared;
 
 namespace Curvia.Application.Features.Awareness.Queries.GetAwarenessForArea;
 
@@ -61,10 +61,7 @@ internal sealed class GetAwarenessForAreaQueryHandler : IQueryHandler<GetAwarene
 		var bbox = bboxResult.Value;
 
 		if (bbox.ApproxAreaDegrees > MaxAreaDegrees)
-			return Result.Failure<AwarenessResultDto>(new Error(
-				"Awareness.AreaTooLarge",
-				$"The requested area is too large. Maximum is {MaxAreaDegrees}°² "
-			  + $"(≈ 400 km × 400 km). Your area is {bbox.ApproxAreaDegrees:F2}°²."));
+			return Result.Failure<AwarenessResultDto>(new Error("Awareness.AreaTooLarge", $"The requested area is too large. Maximum is {MaxAreaDegrees}°² " + $"(≈ 400 km × 400 km). Your area is {bbox.ApproxAreaDegrees:F2}°²."));
 
 		return await FetchAndAssembleAsync(bbox, query.Types, cancellationToken);
 	}

@@ -1,7 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Curvia.Domain.Features.Routing.Routes.Entities;
-using Curvia.Domain.Features.Routing.Routes.Aggregate;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Curvia.Domain.Features.Routing.Routes.Aggregate;
 using Curvia.Persistence.EntityFrameworkCore.Constants;
 using Curvia.Domain.Features.Routing.Routes.ValueObjects;
 using Curvia.Domain.Features.Routing.RoutePlans.Aggregate;
@@ -118,12 +118,15 @@ internal sealed class RouteConfiguration : IEntityTypeConfiguration<Route>
 		#endregion
 
 		#region Properties - BoundingBox (flattened)
+		// Column names updated from Min/MaxLatitude/Longitude → BBoxSouth/West/North/East
+		// to align with the canonical South/West/North/East property naming on BoundingBox.
+		// ⚠️  A database migration is required to rename these four columns.
 		builder.OwnsOne(x => x.BoundingBox, bbox =>
 		{
-			bbox.Property(p => p.MinLatitude).HasColumnName("MinLatitude").IsRequired();
-			bbox.Property(p => p.MinLongitude).HasColumnName("MinLongitude").IsRequired();
-			bbox.Property(p => p.MaxLatitude).HasColumnName("MaxLatitude").IsRequired();
-			bbox.Property(p => p.MaxLongitude).HasColumnName("MaxLongitude").IsRequired();
+			bbox.Property(p => p.South).HasColumnName("BBoxSouth").IsRequired();
+			bbox.Property(p => p.West).HasColumnName("BBoxWest").IsRequired();
+			bbox.Property(p => p.North).HasColumnName("BBoxNorth").IsRequired();
+			bbox.Property(p => p.East).HasColumnName("BBoxEast").IsRequired();
 		});
 		#endregion
 

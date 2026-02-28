@@ -1,5 +1,6 @@
 ﻿using Pivot.Framework.Domain.Shared;
 using Pivot.Framework.Domain.Primitives;
+using Curvia.Domain.Shared.ValueObjects;
 using Curvia.Domain.Features.Routing.Shared;
 using Curvia.Domain.Features.Routing.Routes.Errors;
 using Curvia.Domain.Features.Routing.Routes.Entities;

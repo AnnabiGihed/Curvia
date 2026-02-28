@@ -1,6 +1,6 @@
-﻿using Pivot.Framework.Domain.Repositories;
+﻿using Curvia.Domain.Shared.ValueObjects;
+using Pivot.Framework.Domain.Repositories;
 using Curvia.Domain.Features.Awareness.Aggregates;
-using Curvia.Domain.Features.Awareness.ValueObjects;
 
 namespace Curvia.Domain.Features.Awareness.Repositories;
 
