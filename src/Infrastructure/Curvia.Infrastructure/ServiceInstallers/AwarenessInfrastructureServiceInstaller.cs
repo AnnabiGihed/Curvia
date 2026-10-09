@@ -33,10 +33,6 @@ public sealed class AwarenessInfrastructureServiceInstaller : IServiceInstaller
 	/// <param name="includeConventionBasedRegistration">When true, convention-based registrations are included via base.</param>
 	public void Install(IServiceCollection services, IConfiguration configuration, bool includeConventionBasedRegistration = true)
 	{
-		#region Awareness options
-		services.Configure<AwarenessSyncOptions>(configuration.GetSection(AwarenessSyncOptions.SectionName));
-		#endregion
-
 		#region Hangfire — storage + server (via Pivot.Framework.Infrastructure.Scheduling)
 		// Uses the "HangfireConnection" connection string from appsettings.
 		// AddHangfireWithDashboard registers AddHangfire (SQL Server storage) + AddHangfireServer.
@@ -75,9 +71,9 @@ public sealed class AwarenessInfrastructureServiceInstaller : IServiceInstaller
 			c.Timeout = TimeSpan.FromSeconds(30);
 		});
 
-		services.AddHttpClient<DatexIIIncidentProvider>(c =>
+		services.AddHttpClient<TomTomIncidentProvider>(c =>
 		{
-			c.Timeout = TimeSpan.FromSeconds(20);
+			c.Timeout = TimeSpan.FromSeconds(30);
 		});
 		#endregion
 
@@ -96,7 +92,8 @@ public sealed class AwarenessInfrastructureServiceInstaller : IServiceInstaller
 		#endregion
 
 		#region Incident providers
-		services.AddScoped<IIncidentFeedProvider, DatexIIIncidentProvider>();
+		services.Configure<TomTomSyncOptions>(configuration.GetSection(TomTomSyncOptions.SectionName));
+		services.AddScoped<IIncidentFeedProvider, TomTomIncidentProvider>();
 		#endregion
 
 		#region Cleanup job — resolved by Hangfire per-job DI scope
